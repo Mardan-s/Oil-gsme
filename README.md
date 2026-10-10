@@ -4,6 +4,11 @@ A mobile oil-patch tycoon game. You start as a lease hound with $40,000 and a be
 
 It's one HTML file with no build step and no dependencies. Open `index.html` in any phone browser. Use "Add to Home Screen" to run it full screen. Progress saves on the device.
 
+## What's in it
+
+- **A living oilfield.** Each county is an animated isometric scene: pumpjacks nodding, derricks going up, tanker trucks on caliche roads, cattle, a windmill, tumbleweeds and dust devils, and a day-night cycle with gas flares glowing after dark. Every basin looks different: Permian desert, Eagle Ford oaks, Bakken snow and Gulf platforms. Hit + to zoom in and drag to look around. A classic plat map view is still there if you want it.
+- **A 10-chapter story.** Your mentor Cal Brewer, a crew that joins as you go (Rosa the tool pusher, Skeeter the roughneck, June the pumper, Doc the geologist), a Fort Worth banker, the county sheriff, and Vivian Ashby of Ashby Petroleum, a rival who leases land out from under you. Each crew member gives a permanent perk, and they all talk to you while you play.
+
 ## How to play
 
 1. **Lease.** Tap a section on the plat map. Survey it to learn the geology, then talk to the owner. Raise the per-acre bonus or give a bigger royalty (1/8 up to 1/4). Small talk, brisket and hardball can move them, but their patience runs out.
