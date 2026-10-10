@@ -257,6 +257,13 @@ input[type=range]{width:100%;height:36px;accent-color:var(--flare);margin:0}
 .toast.who b{color:var(--brass)}
 @media (max-width:360px){.crew{grid-template-columns:1fr}}
 
+/* Drilling game */
+#dg{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);bottom:env(safe-area-inset-bottom,0px);z-index:45;background:#120e0a;touch-action:none;-webkit-user-select:none;user-select:none}
+#dg canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.dg-card{position:absolute;left:16px;right:16px;bottom:16px;max-width:440px;margin:0 auto;max-height:calc(100% - 32px);overflow-y:auto;background:var(--paper);border:2px solid var(--ink);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;animation:pop .2s ease-out}
+.stars{display:flex;gap:6px;font-size:34px;line-height:1;color:#cdbd99}
+.stars .on{color:var(--brass);text-shadow:0 2px 0 var(--ink)}
+
 /* Feedback: squish, pops, flashes */
 .btn,.tile,.chip,.sell,.seg button,.tabs button,.tank{transition:transform .09s ease-out}
 .btn:active:not(:disabled),.tile:active,.chip:active,.seg button:active:not(:disabled),.tabs button:active,.tank:active{transform:scale(.94)}
@@ -326,6 +333,7 @@ input[type=range]{width:100%;height:36px;accent-color:var(--flare);margin:0}
 <div id="modal-wrap" hidden><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
 <div id="toasts" aria-live="polite"></div>
 <canvas id="fx"></canvas>
+<div id="dg" hidden><canvas id="dg-c"></canvas><div class="dg-card" id="dg-card" hidden></div></div>
 <div id="banner"></div>
 <div id="flash"></div>
 
@@ -429,6 +437,9 @@ const GOALS = [
   { id:'up3',     n:'Tooling up',         d:'Buy 3 upgrades',                  c:()=>S.stats.ups >= 3,      r:12000 },
   { id:'leases3', n:'Lease hound',        d:'Hold 3 leases',                   c:()=>leaseCount() >= 3,    r:15000 },
   { id:'wells5',  n:'Five pumping',       d:'Have 5 producing wells',          c:()=>prodWells().length >= 5, r:30000 },
+  { id:'bull',    n:'Bullseye',           d:'Land dead center in a sweet spot',  c:()=>S.stats.bulls >= 1,    r:20000 },
+  { id:'kick3',   n:'Kick killer',        d:'Kill 3 kicks while drilling',       c:()=>S.stats.kicks >= 3,    r:40000 },
+  { id:'stars5',  n:'Three-star driller', d:'Drill 5 three-star wells',          c:()=>S.stats.stars3 >= 5,   r:1.5e5 },
   { id:'dry',     n:'Dusters happen',     d:'Drill a dry hole',                c:()=>S.stats.dry >= 1,      r:10000 },
   { id:'gusher',  n:'Thar she blows',     d:'Strike a gusher',                 c:()=>S.stats.gushers >= 1,  r:25000 },
   { id:'earn250', n:'Quarter million',    d:'Earn $250K this run',             c:()=>S.stats.earned >= 2.5e5, r:50000 },
@@ -468,7 +479,7 @@ function newState(keep){
     wells:[], up:{}, rep:0, legacy, prestiges:keep.prestiges || 0, lifetime:keep.lifetime || 0, company:keep.company || 'Dust Devil Oil & Gas',
     story:keep.story || { ch:0, ph:'intro', p0:0, wait:0 }, crew:keep.crew || [], rival:keep.rival || { on:false, next:0 }, view:keep.view || 'scene',
     sound: keep.sound !== undefined ? keep.sound : true, ambient: keep.ambient !== undefined ? keep.ambient : true, vol: keep.vol != null ? keep.vol : .8, autoFloor:0,
-    stats:{ leases:0, surveys:0, wells:0, dry:0, gushers:0, sold:0, earned:0, best:0, ups:0, horiz:0, blowouts:0, lost:0, events:0, buyouts:0 },
+    stats:{ leases:0, surveys:0, wells:0, dry:0, gushers:0, sold:0, earned:0, best:0, ups:0, horiz:0, blowouts:0, lost:0, events:0, buyouts:0, kicks:0, bulls:0, stars3:0 },
     goals:{}, fx:{}, flags:{}, nextEvent:100, nid:1, savedAt:Date.now(), welcomed:!!keep.welcomed,
   };
 }
@@ -766,7 +777,7 @@ function tick(dt, offline){
     else if (w.st === 'prod'){
       w.age += dt;
       const q = wellRate(w) * (1 - w.roy) * dt; produce(q); w.cum += q;
-      if (!offline && rand() < dt * .0011 * Math.pow(.82, crew) * (hasCrew('june') ? .7 : 1)){ w.st = 'down'; w.dt = 0; toast(`${lab(tractOf(w))} #${w.n} went down. Tap it on the Wells tab to fix.`, 'bad'); SND.down(); buzz(40); }
+      if (!offline && rand() < dt * .00035 * Math.pow(.82, crew) * (hasCrew('june') ? .7 : 1)){ w.st = 'down'; w.dt = 0; toast(`${lab(tractOf(w))} #${w.n} went down. Tap it on the Wells tab to fix.`, 'bad'); SND.down(); buzz(40); }
     } else if (w.st === 'down'){
       w.dt += dt; if ((crew > 0 && w.dt >= 50 / (1 + .4 * crew)) || (hasCrew('june') && w.dt >= 15)) w.st = 'prod';
     }
@@ -774,7 +785,7 @@ function tick(dt, offline){
   if (lvl('pipe') && !fxOn('pipecut') && S.bbl > 0 && S.price >= S.autoFloor) sell(S.bbl, autoFrac(), true);
   if (!offline){
     rivalTick();
-    if (S.t >= S.nextEvent && S.stats.wells > 0 && $('#modal-wrap').hidden && $('#sheet-wrap').hidden){ S.nextEvent = S.t + 75 + rand() * 90; fireEvent(); }
+    if (S.t >= S.nextEvent && S.stats.wells > 0 && !DG.on && $('#modal-wrap').hidden && $('#sheet-wrap').hidden){ S.nextEvent = S.t + 75 + rand() * 90; fireEvent(); }
     if (Math.floor(S.t) % 2 === 0 && Math.floor(S.t - dt) % 2 !== 0){ S.ph.push(S.price); if (S.ph.length > 90) S.ph.shift(); }
   }
 }
@@ -789,19 +800,20 @@ function sell(amount, frac, auto){
   S.bbl -= amount; S.cash += rev; S.stats.earned += rev; S.lifetime += rev; S.stats.sold += amount; S.stats.best = Math.max(S.stats.best, p);
   return rev;
 }
-function finishWell(w, offline){
+function finishWell(w, offline, res){
   const t = tractOf(w), R = REG[w.r];
   const dryP = .02 + .45 * Math.pow(1 - t.pot, 2.2);
-  if (!w.force && rand() < dryP){
+  if (res ? res.dry : (!w.force && rand() < dryP)){
     w.st = 'dry'; S.stats.dry++;
     if (!offline){ banner('DRY HOLE', `${lab(t)} #${w.n} came up dusty`, true); SND.dry(); buzz([40, 80, 40]); }
     return;
   }
-  let qi = 2 * R.mult * (.25 + t.pot * 1.5) * (.8 + rand() * .4) * (1 + .12 * lvl('frac'));
+  const crewQ = .75 + .02 * lvl('rigs') + (hasCrew('rosa') ? .1 : 0);
+  let qi = 2 * R.mult * (.25 + t.pot * 1.5) * (res ? res.q : crewQ * (.85 + rand() * .3)) * (1 + .12 * lvl('frac'));
   if (w.k === 'h') qi *= 4.2 * (1 + .15 * Math.max(0, lvl('horiz') - 1));
   let gush = false;
-  if (w.force || (t.pot > .6 && rand() < (t.pot - .5) * .6)){ qi *= 1.8; gush = true; S.stats.gushers++; }
-  Object.assign(w, { st:'prod', qi, age:0, cum:0, roy:t.roy, b:.9, D:(w.k === 'h' ? .006 : .0025) * Math.pow(.94, lvl('lift')), fl:Math.min(.6, .15 + .04 * lvl('lift')), gush });
+  if (res ? res.gush : (w.force || (t.pot > .6 && rand() < (t.pot - .5) * .3))){ qi *= 1.8; gush = true; S.stats.gushers++; }
+  Object.assign(w, { st:'prod', qi, age:0, cum:0, roy:t.roy, b:.9, D:(w.k === 'h' ? .0022 : .0009) * Math.pow(.94, lvl('lift')), fl:Math.min(.7, .28 + .04 * lvl('lift')), gush });
   S.stats.wells++; if (w.k === 'h') S.stats.horiz++;
   if (!offline){
     const net = qi * (1 - t.roy);
@@ -869,6 +881,14 @@ const A = {
     S.goals[g.id] = 1; S.cash += g.r; floaty('+' + money(g.r), el); coinBurst(el, g.r); SND.claim(); buzz([15, 30, 15, 30, 40]); renderAll(true);
   },
   closeSheet(){ closeSheet(); },
+  drillGame(d){
+    const t = S.regions[+d.r].tracts[+d.i], k = d.k;
+    if (S.cash < drillCost(t.r, k) || tractWells(t).length >= slots(t) || (k === 'h' && !lvl('horiz'))) return;
+    SND.tab(); dgOpen(t, k);
+  },
+  dgGo(){ const g = DG.g; if (!g || g.ph !== 'ready' || S.cash < g.cost) return; S.cash -= g.cost; g.ph = 'down'; dgCard(null); SND.drill(); dgStartDrone(); buzz(30); },
+  dgCrew(){ const g = DG.g; if (!g) return; DG.on = false; $('#dg').hidden = true; dgStopDrone(); A.drill({ r:g.t.r, i:g.t.i, k:g.kind }); DG.g = null; },
+  dgClose(){ const g = DG.g; DG.on = false; DG.g = null; $('#dg').hidden = true; dgStopDrone(); renderAll(true); if (g) openTract(g.t.r, g.t.i); },
   buyout(d){
     const t = S.regions[+d.r].tracts[+d.i], c = rivalCost(t); if (t.st !== 'rival' || S.cash < c) return;
     S.cash -= c; t.st = 'leased'; t.roy = .1875; S.stats.buyouts++; S.stats.leases++;
@@ -1282,7 +1302,7 @@ function showLine(){
 function sceneEnd(){ const d = scn && scn.done; scn = null; closeModal(); if (d) d(); }
 function storyTick(){
   const st = S.story, ch = CHAPTERS[st.ch];
-  if (!ch || S.t < (st.wait || 0) || !$('#modal-wrap').hidden || !$('#sheet-wrap').hidden) return;
+  if (!ch || DG.on || S.t < (st.wait || 0) || !$('#modal-wrap').hidden || !$('#sheet-wrap').hidden) return;
   if (st.ph === 'intro'){ st.ph = 'intro_play'; playScene(ch.intro, () => { st.ph = 'active'; st.p0 = S.prestiges; if (ch.start) ch.start(); renderAll(true); }); }
   else if (st.ph === 'active' && ch.obj.every(o => o.c())){ st.ph = 'outro_play'; playScene(ch.outro, finishChapter); }
 }
@@ -1315,7 +1335,7 @@ function rivalTick(){
 /* crew chatter */
 let chatNext = 45;
 function chatterTick(){
-  if (S.t < chatNext || !$('#modal-wrap').hidden || $('#toasts').children.length) return;
+  if (S.t < chatNext || DG.on || !$('#modal-wrap').hidden || $('#toasts').children.length) return;
   chatNext = S.t + 55 + rand() * 50;
   const ok = CHAT.filter(c => (c.who === 'cal' || (c.who === 'vivian' ? S.rival.on : hasCrew(c.who))) && c.ok());
   if (!ok.length) return;
@@ -1705,6 +1725,302 @@ function sceneLoop(now){
   updateScene(dt, now / 1000); drawScene(cv, now / 1000);
 }
 
+/* ================= drilling mini-game =================
+   You steer the bit down through the real formations of each basin. Drag to steer, dodge hard rock,
+   old wellbores and gas, grab oil shows, and land in the pay zone. Horizontal wells then ride the
+   pay zone for two miles: hold to climb, let go to drop. How well you drill sets the size of the well. */
+const FORMS = {
+  reeves:  { depth:9500,  pay:'Wolfcamp',         layers:['Rustler','Salado salt','Castile anhydrite','Delaware Mountain Group','Bone Spring'] },
+  midland: { depth:8800,  pay:'Wolfcamp',         layers:['Ogallala','San Andres','Clear Fork','Spraberry','Dean'] },
+  karnes:  { depth:11200, pay:'Eagle Ford Shale', layers:['Carrizo sand','Wilcox','Midway','Navarro','Austin Chalk'] },
+  mckenzie:{ depth:10400, pay:'Middle Bakken',    layers:['Pierre Shale','Niobrara','Dakota','Spearfish','Madison lime'] },
+  gulf:    { depth:26000, pay:'Wilcox sands',     layers:['Gulf of Mexico','Pliocene sands','Miocene','Salt canopy','Paleogene'], water:true },
+};
+const LAYERC = ['#c7a476','#b48a5e','#9d8366','#8a7861','#776855'];
+const DG = { on:false, g:null, last:0, paused:false, drone:null };
+const VIEW_FT = 2200;
+function dgOpen(t, kind){
+  const R = REG[t.r], F = FORMS[R.id], D = Math.round(F.depth * (.95 + rand() * .1) / 10) * 10;
+  const precise = lvl('geo') >= 2 || hasCrew('doc'), px0 = .2 + rand() * .6, w = .07 + t.pot * .28;
+  const g = { t, kind, F, D, cost:drillCost(t.r, kind), bx:.5, bd:0, tx:.5, hpMax:100 + lvl('rigs') * 12, hp:0, shows:0, water:0, hits:0, kicks:0,
+    trail:[[.5, 0]], obs:[], ph:'ready', px0, w, guide:t.surveyed ? px0 + (precise ? 0 : (rand() - .5) * w * 1.1) : null, precise,
+    inv:0, slow:0, kick:null, lat:null, down:false, msg:'', msgT:0, shake:0, parts:[], bounds:[] };
+  g.hp = g.hpMax;
+  const n = F.layers.length; for (let i = 0; i <= n; i++) g.bounds.push(i === 0 ? 0 : i === n ? D : D * (i / n) * (.94 + rand() * .12));
+  const add = (type, count, f) => { for (let k = 0; k < count; k++) g.obs.push(Object.assign({ type, x:.08 + rand() * .84, d:700 + rand() * (D - 1300) }, f())); };
+  const ri = t.r;
+  add('rock', 5 + ri * 2 + Math.floor(D / 5000), () => ({ r:.045 + rand() * .055 }));
+  add('gas', 2 + Math.min(ri, 3), () => ({ r:.035 + rand() * .025 }));
+  add('water', 2, () => ({ rx:.12 + rand() * .14, ry:40 }));
+  add('show', 5, () => ({ r:.022 }));
+  if (!F.water) add('bore', 1 + rint(2), () => ({ len:900 + rand() * 1600 }));
+  for (const o of g.obs) if (o.type === 'bore') o.len = Math.min(o.len, D - 300 - o.d);
+  if (F.water) g.obs = g.obs.filter(o => o.d > D * .25);
+  DG.g = g; DG.on = true; DG.paused = false; closeSheet();
+  $('#dg').hidden = false; dgCard('ready'); DG.last = performance.now(); requestAnimationFrame(dgLoop);
+}
+function dgCard(kind, res){
+  const g = DG.g, t = g.t, el = $('#dg-card'), F = g.F;
+  if (!kind){ el.hidden = true; return; }
+  el.hidden = false;
+  if (kind === 'ready'){
+    const rig = drillWells().length < rigCap();
+    el.innerHTML = `<span class="k">${lab(t)} · ${g.kind === 'h' ? 'Horizontal' : 'Vertical'} well</span>
+      <h2>Drill to the ${F.pay}</h2>
+      <p style="margin:0">Target depth <b class="num">${fmt(g.D)} ft</b>. Drag left and right to steer the bit. Dodge hard rock, old wellbores and gas pockets. Grab oil shows. Land in the sweet spot.</p>
+      ${g.kind === 'h' ? '<p style="margin:0">Then the bit turns sideways. <b>Hold to climb, let go to drop.</b> Stay inside the pay zone for two miles.</p>' : ''}
+      <p class="sub" style="margin:0">${t.surveyed ? (g.precise ? 'Your geologist marked the exact target.' : 'Your survey marked the rough target.') : "No survey. You won't see the target until you're close."}</p>
+      <div class="btns"><button class="btn alt col" data-a="dgCrew" ${rig ? '' : 'disabled'}>Let the crew drill<small>${rig ? 'Average result' : 'All rigs busy'}</small></button><button class="btn go col" data-a="dgGo" data-cost="${g.cost}">Spud in<small>${money(g.cost)}</small></button></div>
+      <button class="btn alt sm" data-a="dgClose">Cancel</button>`;
+    patchLive(el); return;
+  }
+  const stars = res.stars, starRow = `<div class="stars">${[0, 1, 2].map(k => `<span class="${k < stars ? 'on' : ''}">★</span>`).join('')}</div>`;
+  el.innerHTML = `<span class="k">${lab(t)} · ${g.kind === 'h' ? 'Horizontal' : 'Vertical'} well</span>
+    <h2>${res.title}</h2>${starRow}
+    <div class="stats">${res.lines.map(([k, v]) => `<div><span class="k">${k}</span><b>${v}</b></div>`).join('')}</div>
+    ${res.note ? `<p class="sub" style="margin:0">${res.note}</p>` : ''}
+    <button class="btn go block" data-a="dgClose">Back to the field</button>`;
+}
+function dgStartDrone(){
+  if (!live()) return; const c = AU.c;
+  try {
+    const o = c.createOscillator(), o2 = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain(), lfo = c.createOscillator(), lg = c.createGain();
+    o.type = 'sawtooth'; o.frequency.value = 46; o2.type = 'square'; o2.frequency.value = 23; f.type = 'lowpass'; f.frequency.value = 300;
+    lfo.frequency.value = 9; lg.gain.value = .05; lfo.connect(lg); lg.connect(g.gain); g.gain.value = .09;
+    o.connect(f); o2.connect(f); f.connect(g); g.connect(AU.fx); [o, o2, lfo].forEach(n => n.start());
+    DG.drone = { stop(){ try { g.gain.setTargetAtTime(0, c.currentTime, .1); setTimeout(() => [o, o2, lfo].forEach(n => n.stop()), 400); } catch (e) {} }, f, o };
+  } catch (e) {}
+}
+function dgStopDrone(){ if (DG.drone){ DG.drone.stop(); DG.drone = null; } }
+function dgMsg(g, m){ g.msg = m; g.msgT = 1.4; }
+function dgLoop(now){
+  if (!DG.on) return; requestAnimationFrame(dgLoop);
+  const dt = Math.min(.05, (now - DG.last) / 1000); DG.last = now;
+  const g = DG.g; if (!g) return;
+  if (!DG.paused){
+    if (g.ph === 'down') dgDown(g, dt); else if (g.ph === 'kick') dgKick(g, dt); else if (g.ph === 'lateral') dgLat(g, dt);
+    g.msgT = Math.max(0, g.msgT - dt); g.shake = Math.max(0, g.shake - dt * 2.5); g.inv = Math.max(0, g.inv - dt);
+    for (const p of g.parts){ p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; p.l -= dt; } g.parts = g.parts.filter(p => p.l > 0);
+  }
+  dgDraw(g, now / 1000);
+}
+function dgSize(){ const cv = $('#dg-c'); return [cv.clientWidth, cv.clientHeight]; }
+function dgDown(g, dt){
+  const [W, H] = dgSize(), k = H / VIEW_FT;
+  g.slow = Math.max(0, g.slow - dt);
+  g.bd += g.D / 14 * (g.slow > 0 ? .4 : 1) * dt;
+  const maxv = .4 + lvl('rigs') * .02;
+  if (g.down) g.bx += clamp((g.tx - g.bx) * 7 * dt, -maxv * dt, maxv * dt);
+  g.bx = clamp(g.bx, .03, .97);
+  const last = g.trail[g.trail.length - 1]; if (g.bd - last[1] > 35) g.trail.push([g.bx, g.bd]);
+  if (DG.drone) DG.drone.f.frequency.value = 260 + Math.sin(g.bd / 300) * 60;
+  if (rand() < dt * 25) g.parts.push({ x:g.bx * W + (rand() - .5) * 10, y:H * .35, vx:(rand() - .5) * 90, vy:-60 - rand() * 80, l:.5, c:'#5a4a38' });
+  for (const o of g.obs){
+    if (o.done) continue;
+    const dx = (g.bx - o.x) * W, dy = (g.bd - o.d) * k;
+    let hit = false;
+    if (o.type === 'water') hit = (dx / (o.rx * W)) ** 2 + (dy / (o.ry * k)) ** 2 < 1;
+    else if (o.type === 'bore') hit = Math.abs(dx) < 8 && g.bd >= o.d && g.bd <= o.d + o.len;
+    else hit = Math.hypot(dx, dy) < o.r * W + 7;
+    if (!hit) continue;
+    if (o.type === 'rock' || o.type === 'bore'){
+      if (g.inv > 0) continue;
+      const dmg = o.type === 'rock' ? 22 : 30; g.hp -= dmg; g.hits++; g.inv = .7; g.slow = .5; g.shake = 1; g.bx = clamp(g.bx + Math.sign(dx || 1) * .045, .03, .97);
+      dgMsg(g, o.type === 'rock' ? 'HARD ROCK!' : 'OLD WELLBORE!'); clank(0, .45); clank(.06, .4); osc({ f:90, to:40, d:.2, v:.5 }); buzz(45);
+      for (let i = 0; i < 14; i++) g.parts.push({ x:g.bx * W, y:H * .35, vx:(rand() - .5) * 260, vy:-rand() * 220, l:.7, c:'#cfc6b5' });
+      if (g.hp <= 0) return dgEnd(g, 'stuck');
+    } else if (o.type === 'gas'){
+      o.done = true; g.ph = 'kick'; g.kick = { p:45, t:0 }; SND.alarm(); buzz([80, 40, 80]); g.shake = 1.2;
+    } else if (o.type === 'water'){
+      o.done = true; g.water++; dgMsg(g, 'WATER ZONE · oil cut'); nz({ type:'bandpass', f:700, to:300, q:1, d:.5, v:.35 }); buzz(20);
+    } else if (o.type === 'show'){
+      o.done = true; g.shows++; dgMsg(g, 'OIL SHOW +'); SND.coinTick(g.shows * 3); coin(.05, 1.2); buzz(12);
+      for (let i = 0; i < 10; i++) g.parts.push({ x:g.bx * W, y:H * .35, vx:(rand() - .5) * 200, vy:-rand() * 200, l:.6, c:'#e3b04b' });
+    }
+  }
+  if (g.bd >= g.D){
+    g.bd = g.D; const off = Math.abs(g.bx - g.px0) / g.w;
+    if (off > 1.35) return dgEnd(g, 'miss');
+    if (g.kind === 'h' && off <= 1){
+      g.ph = 'lateral'; g.off = off; dgMsg(g, 'IN THE ZONE · TURN!');
+      const L = { L:0, len:10560, vy:0, in:0, tot:0, a1:70 + rand() * 90, a2:18 + rand() * 22, f1:rand() * 6, f2:rand() * 6, h:38 + g.t.pot * 55, trail:[], wasIn:true };
+      L.by = latC(L, 0); L.trail.push([0, L.by]); g.lat = L; SND.online(); buzz([30, 30, 30]);
+      return;
+    }
+    g.off = off; dgEnd(g, 'hit');
+  }
+}
+function dgKick(g, dt){
+  const K = g.kick; K.t += dt; K.p += (24 + g.t.r * 4) * dt; g.shake = Math.max(g.shake, .4);
+  if (K.p >= 100) return dgEnd(g, 'blowout');
+  if (K.p <= 0){ g.ph = 'down'; g.kicks++; S.stats.kicks = (S.stats.kicks || 0) + 1; dgMsg(g, 'KICK KILLED!'); SND.fix(); buzz([20, 20, 20]); }
+}
+function dgTap(){
+  const g = DG.g; if (!g || g.ph !== 'kick') return;
+  g.kick.p -= 9.5; osc({ f:70, to:45, d:.1, v:.45 }); nz({ type:'bandpass', f:500, q:2, d:.06, v:.2 }); buzz(10);
+}
+const latC = (L, x) => L.a1 * Math.sin(x / 1800 + L.f1) + L.a2 * Math.sin(x / 520 + L.f2) - L.a1 * Math.sin(L.f1) - L.a2 * Math.sin(L.f2);
+function dgLat(g, dt){
+  const L = g.lat; L.L += L.len / 10 * dt;
+  L.vy += (g.down ? -620 : 620) * dt; L.vy = clamp(L.vy, -230, 230); L.by += L.vy * dt; L.by = clamp(L.by, -520, 520);
+  const inside = Math.abs(L.by - latC(L, L.L)) < L.h; L.tot += dt; if (inside) L.in += dt;
+  if (!inside && L.wasIn){ SND.warn(); buzz(15); } if (inside && !L.wasIn) osc({ f:880, d:.08, v:.08, type:'triangle' });
+  L.wasIn = inside;
+  if (L.L - L.trail[L.trail.length - 1][0] > 70) L.trail.push([L.L, L.by]);
+  if (DG.drone) DG.drone.f.frequency.value = inside ? 380 : 200;
+  if (L.L >= L.len) dgEnd(g, 'hit');
+}
+function dgEnd(g, how){
+  g.ph = 'done'; dgStopDrone();
+  const t = g.t; let res, lines = [];
+  const hpPct = Math.max(0, Math.round(g.hp / g.hpMax * 100));
+  if (how === 'blowout'){
+    const c = evMoney(30, 3000, true); pay(c); S.stats.blowouts++; S.rep -= 3;
+    SND.blowout(); flash('#ff5a1a'); shake(true); buzz([200, 60, 300]);
+    dgCard('result', { stars:0, title:'Blowout!', lines:[['Well', 'Lost'], ['Cleanup and fines', money(c)]], note:"You didn't weight up the mud fast enough. When the gauge climbs, tap like your life depends on it. Out here it does." });
+    return;
+  }
+  if (how === 'miss' || how === 'stuck'){
+    res = { dry:true };
+    lines = [['Depth', fmt(Math.round(g.bd)) + ' ft'], ['Bit', hpPct + '%']];
+  } else {
+    const off = g.off; let q = off <= 1 ? 1.25 - .65 * off : .3;
+    let zone = null;
+    if (g.lat){ zone = g.lat.tot ? g.lat.in / g.lat.tot : 0; q = q * .5 + zone * .9; }
+    q += .05 * g.shows - .1 * g.water - (g.hp < g.hpMax * .5 ? .08 : 0) + .04 * g.kicks;
+    q = clamp(q, .3, 1.6);
+    const bull = off < .2, gush = t.pot > .5 && (g.lat ? zone > .85 : bull);
+    if (bull) S.stats.bulls = (S.stats.bulls || 0) + 1;
+    res = { dry:false, q, gush };
+    lines = [['On target', off <= 1 ? Math.round((1 - off) * 100) + '%' : 'Edge of zone'], ...(g.lat ? [['In the pay zone', Math.round(zone * 100) + '%']] : []), ['Oil shows', g.shows], ['Bit left', hpPct + '%']];
+  }
+  const n = Math.max(0, ...tractWells(t).map(w => w.n)) + 1;
+  const w = { id:S.nid++, r:t.r, i:t.i, n, k:g.kind, st:'drill', prog:0, need:1, qi:0, age:0, cum:0, roy:t.roy, self:true };
+  S.wells.push(w); finishWell(w, false, res);
+  if (res.dry){
+    dgCard('result', { stars:0, title:how === 'stuck' ? 'Stuck pipe' : 'Missed the zone', lines, note:how === 'stuck' ? 'Too many hits wore out the bit and the pipe got stuck. Steer around the gray rock.' : `You came down outside the ${g.F.pay}. ${t.surveyed ? 'Follow the target line.' : 'A survey shows you where to aim.'} Plug it on the Wells tab to free the slot.` });
+    return;
+  }
+  const stars = res.gush || res.q >= 1.2 ? 3 : res.q >= .85 ? 2 : 1; if (stars === 3) S.stats.stars3 = (S.stats.stars3 || 0) + 1;
+  lines.push(['Well output', rateStr(w.qi * (1 - w.roy)) + ' bbl/s']);
+  dgCard('result', { stars, title:res.gush ? 'GUSHER!' : stars === 3 ? 'Perfect well' : stars === 2 ? 'Good well' : 'She flows', lines, note:stars < 3 ? (g.lat ? 'Hold and release to ride the middle of the zone. The bigger the in-zone number, the bigger the well.' : 'Land closer to the bright center of the zone for a bigger well, and grab the oil shows on the way down.') : '' });
+  if (stars === 3) SND.claim();
+}
+/* drawing */
+function dgDraw(g, T){
+  const cv = $('#dg-c'), dpr = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth, H = cv.clientHeight; if (!W) return;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)){ cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const sh = g.shake * 7; c.save(); if (sh) c.translate((rand() - .5) * sh, (rand() - .5) * sh);
+  if (g.lat && (g.ph === 'lateral' || g.ph === 'done')) dgDrawLat(c, g, W, H, T); else dgDrawDown(c, g, W, H, T);
+  c.restore();
+  if (g.ph === 'kick'){
+    const K = g.kick, cx = W / 2, cy = H * .55, r = Math.min(W, H) * .22;
+    const vg = c.createRadialGradient(cx, cy, r, cx, cy, Math.max(W, H)); vg.addColorStop(0, 'rgba(120,0,0,0)'); vg.addColorStop(1, `rgba(150,10,0,${.35 + .2 * Math.sin(T * 12)})`); c.fillStyle = vg; c.fillRect(0, 0, W, H);
+    c.fillStyle = 'rgba(23,19,14,.85)'; c.beginPath(); c.arc(cx, cy, r + 14, 0, 7); c.fill();
+    c.lineWidth = 14; c.lineCap = 'round';
+    c.strokeStyle = '#3d3226'; c.beginPath(); c.arc(cx, cy, r, Math.PI * .8, Math.PI * 2.2); c.stroke();
+    c.strokeStyle = K.p > 70 ? '#ff4a2a' : K.p > 40 ? '#e3b04b' : '#8fc27a'; c.beginPath(); c.arc(cx, cy, r, Math.PI * .8, Math.PI * (.8 + 1.4 * clamp(K.p / 100, 0, 1))); c.stroke(); c.lineCap = 'butt';
+    c.fillStyle = '#efe4cc'; c.textAlign = 'center'; c.font = `${Math.round(r * .42)}px 'Alfa Slab One',Georgia,serif`; c.fillText(Math.round(clamp(K.p, 0, 100)) + '%', cx, cy + r * .12);
+    c.font = "700 13px 'Barlow Semi Condensed',sans-serif"; c.fillText('WELL PRESSURE', cx, cy + r * .42);
+    c.font = `${Math.round(Math.min(W * .08, 30) * (1 + .06 * Math.sin(T * 14)))}px 'Alfa Slab One',Georgia,serif`; c.fillStyle = '#ffd77a';
+    c.fillText('KICK! TAP TAP TAP!', cx, cy - r - 34); c.font = "600 14px 'Barlow',sans-serif"; c.fillStyle = '#efe4cc'; c.fillText('Tap fast to pump heavy mud and kill the kick', cx, cy - r - 12);
+  }
+  if (g.msgT > 0){ c.globalAlpha = Math.min(1, g.msgT * 2); c.textAlign = 'center'; c.font = `${Math.round(Math.min(W * .075, 28))}px 'Alfa Slab One',Georgia,serif`; c.fillStyle = '#17130e'; c.fillText(g.msg, W / 2 + 2, H * .22 + 2); c.fillStyle = '#ffd77a'; c.fillText(g.msg, W / 2, H * .22); c.globalAlpha = 1; }
+  if (DG.paused && g.ph !== 'done' && g.ph !== 'ready'){ c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(0, 0, W, H); c.fillStyle = '#efe4cc'; c.textAlign = 'center'; c.font = "28px 'Alfa Slab One',Georgia,serif"; c.fillText('PAUSED', W / 2, H / 2); }
+}
+function dgDrawDown(c, g, W, H, T){
+  const k = H / VIEW_FT, cam = g.bd - VIEW_FT * .35, Y = d => (d - cam) * k, F = g.F;
+  c.fillStyle = '#5e5245'; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < F.layers.length; i++){
+    const y0 = Y(g.bounds[i]), y1 = Y(g.bounds[i + 1]); if (y1 < 0 || y0 > H) continue;
+    const water = F.water && i === 0, salt = /salt|anhydrite/i.test(F.layers[i]);
+    c.fillStyle = water ? '#1f5f86' : salt ? '#ddd6c6' : LAYERC[i % LAYERC.length]; c.fillRect(0, y0, W, y1 - y0 + 1);
+    if (!water){ c.fillStyle = 'rgba(0,0,0,.07)'; for (let yy = Math.max(y0, -20); yy < Math.min(y1, H); yy += 18){ const o = (Math.floor((yy - y0) / 18) * 37) % 60; for (let xx = -o; xx < W; xx += 60) c.fillRect(xx, yy, 34, 2); } }
+    else { c.strokeStyle = 'rgba(255,255,255,.08)'; c.lineWidth = 1; for (let yy = y0; yy < y1; yy += 26){ c.beginPath(); c.moveTo(0, yy); c.lineTo(W, yy + 6); c.stroke(); } }
+    c.fillStyle = 'rgba(23,19,14,.25)'; c.fillRect(0, y0, W, 2);
+    if (y0 > -10 && y0 < H){ c.fillStyle = water ? 'rgba(255,255,255,.75)' : 'rgba(23,19,14,.62)'; c.textAlign = 'left'; c.font = "700 11px 'Barlow Semi Condensed',sans-serif"; c.fillText(F.layers[i].toUpperCase() + (i ? ' · ' + fmt(Math.round(g.bounds[i] / 10) * 10) + ' FT' : ''), 10, y0 + 15); }
+  }
+  // pay zone
+  const py = Y(g.D), seeIt = g.t.surveyed || g.D - g.bd < 1000;
+  if (py < H + 20){
+    c.fillStyle = '#4c3f33'; c.fillRect(0, py, W, H - py + 10);
+    c.fillStyle = 'rgba(23,19,14,.62)'; c.textAlign = 'left'; c.font = "700 11px 'Barlow Semi Condensed',sans-serif"; c.fillText(F.pay.toUpperCase() + ' · PAY ZONE · ' + fmt(g.D) + ' FT', 10, py + 15);
+    if (seeIt){
+      const cx = g.px0 * W, hw = g.w * W, gr = c.createRadialGradient(cx, py + 30, 4, cx, py + 30, hw);
+      gr.addColorStop(0, '#ffcf6a'); gr.addColorStop(.2, '#7a4a12'); gr.addColorStop(.75, '#24170c'); gr.addColorStop(1, 'rgba(36,23,12,0)');
+      c.fillStyle = gr; c.beginPath(); c.ellipse(cx, py + 30, hw * 1.15, 60 * k + 26, 0, 0, 7); c.fill();
+      c.fillStyle = `rgba(255,230,160,${.5 + .3 * Math.sin(T * 5)})`; for (let i = 0; i < 6; i++){ const a = T * .7 + i; c.fillRect(cx + Math.cos(a * 1.3) * hw * .6, py + 26 + Math.sin(a) * 10, 2, 2); }
+    }
+  }
+  // surface
+  if (cam < 0){
+    const sy = Y(0); c.fillStyle = '#9cc6e4'; c.fillRect(0, 0, W, sy); c.fillStyle = '#f1dcb3'; c.fillRect(0, sy - 18, W, 18);
+    const x = .5 * W; c.strokeStyle = '#4a443e'; c.lineWidth = 2; c.beginPath(); c.moveTo(x - 16, sy); c.lineTo(x - 3, sy - 90); c.moveTo(x + 16, sy); c.lineTo(x + 3, sy - 90); for (let i = 1; i < 6; i++){ const yy = sy - i * 15, ww = 16 - i * 2.2; c.moveTo(x - ww, yy); c.lineTo(x + ww, yy); } c.stroke();
+    c.fillStyle = '#f06a1d'; c.beginPath(); c.moveTo(x, sy - 92); c.lineTo(x + 12, sy - 88); c.lineTo(x, sy - 84); c.fill();
+  }
+  // target guide
+  if (g.guide != null){ const gx = g.guide * W; c.setLineDash([6, 8]); c.strokeStyle = 'rgba(255,215,122,.7)'; c.lineWidth = 2; c.beginPath(); c.moveTo(gx, Math.max(0, Y(0))); c.lineTo(gx, Math.min(H, py)); c.stroke(); c.setLineDash([]);
+    if (py > 0 && py < H + 40){ c.fillStyle = '#ffd77a'; c.font = "700 12px 'Barlow Semi Condensed',sans-serif"; c.textAlign = 'center'; c.fillText(g.precise ? 'TARGET' : 'TARGET (ROUGH)', gx, py - 8); } }
+  // obstacles
+  for (const o of g.obs){
+    if (o.done && o.type !== 'water') continue;
+    const ox = o.x * W, oy = Y(o.d); if (o.type === 'bore' ? (oy > H || Y(o.d + o.len) < 0) : (oy < -80 || oy > H + 80)) continue;
+    if (o.type === 'rock'){ const r = o.r * W; c.fillStyle = '#8e8a84'; c.beginPath(); for (let a = 0; a < 7; a++){ const ang = a / 7 * Math.PI * 2, rr = r * (.85 + ((a * 37 + Math.round(o.x * 100)) % 7) / 30); a ? c.lineTo(ox + Math.cos(ang) * rr, oy + Math.sin(ang) * rr) : c.moveTo(ox + Math.cos(ang) * rr, oy + Math.sin(ang) * rr); } c.closePath(); c.fill(); c.strokeStyle = '#5c5954'; c.lineWidth = 2; c.stroke(); c.beginPath(); c.moveTo(ox - r * .4, oy - r * .2); c.lineTo(ox, oy + r * .1); c.lineTo(ox + r * .3, oy - r * .3); c.stroke(); }
+    else if (o.type === 'gas'){ const r = o.r * W * (1 + .08 * Math.sin(T * 6 + o.x * 9)); const gr = c.createRadialGradient(ox, oy, 2, ox, oy, r); gr.addColorStop(0, 'rgba(255,120,80,.95)'); gr.addColorStop(1, 'rgba(200,40,20,.35)'); c.fillStyle = gr; c.beginPath(); c.arc(ox, oy, r, 0, 7); c.fill(); c.fillStyle = '#fff'; c.font = "700 10px 'Barlow Semi Condensed',sans-serif"; c.textAlign = 'center'; c.fillText('GAS', ox, oy + 4); }
+    else if (o.type === 'water'){ c.fillStyle = o.done ? 'rgba(60,130,190,.25)' : 'rgba(60,130,190,.7)'; c.beginPath(); c.ellipse(ox, oy, o.rx * W, o.ry * k, 0, 0, 7); c.fill(); }
+    else if (o.type === 'show'){ const r = o.r * W, b = 1 + .15 * Math.sin(T * 8 + o.d); c.fillStyle = '#1b130c'; c.beginPath(); c.arc(ox, oy, r * b, 0, 7); c.fill(); c.strokeStyle = '#e3b04b'; c.lineWidth = 2; c.stroke(); c.fillStyle = '#ffd77a'; c.fillRect(ox - 2, oy - 2, 3, 3); }
+    else if (o.type === 'bore'){ c.strokeStyle = '#3a3836'; c.lineWidth = 6; c.beginPath(); c.moveTo(ox, oy); c.lineTo(ox, Y(o.d + o.len)); c.stroke(); c.fillStyle = '#3a3836'; c.fillRect(ox - 7, oy - 4, 14, 6); }
+  }
+  // pipe + bit
+  c.strokeStyle = '#2b2622'; c.lineWidth = 5; c.lineJoin = 'round'; c.beginPath(); g.trail.forEach(([x, d], i) => { const yy = Y(d); i ? c.lineTo(x * W, yy) : c.moveTo(x * W, yy); }); c.lineTo(g.bx * W, Y(g.bd)); c.stroke();
+  c.strokeStyle = '#8a8580'; c.lineWidth = 2; c.stroke();
+  const bxp = g.bx * W, byp = Y(g.bd), a = T * 18;
+  c.fillStyle = g.inv > 0 && Math.floor(T * 20) % 2 ? '#ff6a4a' : '#d8b04a'; c.beginPath(); c.arc(bxp, byp, 10, 0, 7); c.fill();
+  c.fillStyle = '#5c4a1c'; for (let i = 0; i < 3; i++){ const an = a + i * 2.09; c.beginPath(); c.arc(bxp + Math.cos(an) * 5, byp + Math.sin(an) * 5, 3, 0, 7); c.fill(); }
+  for (const p of g.parts){ c.fillStyle = p.c; c.globalAlpha = Math.min(1, p.l * 2); c.fillRect(p.x, p.y, 3, 3); } c.globalAlpha = 1;
+  if (g.down && g.ph === 'down'){ c.strokeStyle = 'rgba(255,215,122,.35)'; c.lineWidth = 2; c.beginPath(); c.moveTo(g.tx * W, H * .35 - 30); c.lineTo(g.tx * W, H * .35 + 30); c.stroke(); }
+  dgHud(c, g, W, H, [`${fmt(Math.round(g.bd / 10) * 10)} ft`, `${fmt(Math.max(0, Math.round((g.D - g.bd) / 10) * 10))} ft to the ${F.pay}`]);
+}
+function dgDrawLat(c, g, W, H, T){
+  const L = g.lat, kx = W / 2600, ky = H / 1100, camL = L.L - 2600 * .3, X = x => (x - camL) * kx, Y = y => H / 2 + y * ky;
+  c.fillStyle = '#7a6a58'; c.fillRect(0, 0, W, H);
+  c.fillStyle = 'rgba(0,0,0,.07)'; for (let yy = 0; yy < H; yy += 18){ const o = ((yy / 18 | 0) * 37 + Math.floor(camL * kx)) % 60; for (let xx = -o; xx < W; xx += 60) c.fillRect(xx, yy, 34, 2); }
+  c.beginPath(); for (let px = -10; px <= W + 10; px += 8){ const x = camL + px / kx, y = Y(latC(L, x) - L.h); px === -10 ? c.moveTo(px, y) : c.lineTo(px, y); }
+  for (let px = W + 10; px >= -10; px -= 8){ const x = camL + px / kx; c.lineTo(px, Y(latC(L, x) + L.h)); } c.closePath();
+  const gr = c.createLinearGradient(0, H / 2 - 200, 0, H / 2 + 200); gr.addColorStop(0, '#24170c'); gr.addColorStop(.5, '#4a2e10'); gr.addColorStop(1, '#24170c'); c.fillStyle = gr; c.fill();
+  c.setLineDash([10, 10]); c.strokeStyle = 'rgba(255,207,106,.55)'; c.lineWidth = 2; c.beginPath(); for (let px = 0; px <= W; px += 8){ const x = camL + px / kx, y = Y(latC(L, x)); px ? c.lineTo(px, y) : c.moveTo(px, y); } c.stroke(); c.setLineDash([]);
+  c.fillStyle = 'rgba(23,19,14,.6)'; c.font = "700 11px 'Barlow Semi Condensed',sans-serif"; c.textAlign = 'left'; c.fillText(g.F.pay.toUpperCase() + ' · LATERAL', 10, H * .2);
+  c.strokeStyle = '#2b2622'; c.lineWidth = 5; c.beginPath(); L.trail.forEach(([x, y], i) => i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y))); c.lineTo(X(L.L), Y(L.by)); c.stroke(); c.strokeStyle = '#8a8580'; c.lineWidth = 2; c.stroke();
+  const inside = Math.abs(L.by - latC(L, L.L)) < L.h, bx = X(L.L), by = Y(L.by);
+  c.fillStyle = inside ? '#8fc27a' : '#ff6a4a'; c.beginPath(); c.arc(bx, by, 10, 0, 7); c.fill(); c.fillStyle = '#2b2622'; for (let i = 0; i < 3; i++){ const an = T * 18 + i * 2.09; c.beginPath(); c.arc(bx + Math.cos(an) * 5, by + Math.sin(an) * 5, 3, 0, 7); c.fill(); }
+  if (inside && rand() < .5) g.parts.push({ x:bx, y:by, vx:-60 - rand() * 60, vy:(rand() - .5) * 60, l:.5, c:'#e3b04b' });
+  for (const p of g.parts){ c.fillStyle = p.c; c.globalAlpha = Math.min(1, p.l * 2); c.fillRect(p.x, p.y, 3, 3); } c.globalAlpha = 1;
+  const zone = L.tot ? L.in / L.tot : 1;
+  dgHud(c, g, W, H, [`${fmt(Math.round(L.L / 10) * 10)} / ${fmt(L.len)} ft`, `In the zone ${Math.round(zone * 100)}% · hold to climb, let go to drop`], zone);
+}
+function dgHud(c, g, W, H, [big, small], zone){
+  const top = 14;
+  c.fillStyle = 'rgba(23,19,14,.78)'; c.fillRect(0, 0, W, top + 44);
+  c.textAlign = 'left'; c.fillStyle = '#e3b04b'; c.font = "24px 'Alfa Slab One',Georgia,serif"; c.fillText(big, 16, top + 8);
+  c.fillStyle = '#efe4cc'; c.font = "600 13px 'Barlow Semi Condensed',sans-serif"; c.fillText(small, 16, top + 28);
+  const bw = Math.min(120, W * .3), bx = W - bw - 16; c.fillStyle = '#3d3226'; c.fillRect(bx, top + 18, bw, 8);
+  const f = zone == null ? g.hp / g.hpMax : zone; c.fillStyle = f > .5 ? '#8fc27a' : f > .25 ? '#e3b04b' : '#ff6a4a'; c.fillRect(bx, top + 18, bw * clamp(f, 0, 1), 8);
+  c.fillStyle = '#a8977a'; c.textAlign = 'right'; c.font = "700 11px 'Barlow Semi Condensed',sans-serif"; c.fillText(zone == null ? 'BIT' : 'IN ZONE', W - 16, top + 12);
+}
+function dgPointer(e, down){
+  const g = DG.g; if (!g || e.target.id !== 'dg-c') return;
+  const r = e.target.getBoundingClientRect();
+  if (down === true){ g.down = true; g.tx = (e.clientX - r.left) / r.width; dgTap(); }
+  else if (down === false) g.down = false;
+  else if (g.down) g.tx = (e.clientX - r.left) / r.width;
+}
+document.addEventListener('pointerdown', e => dgPointer(e, true));
+document.addEventListener('pointermove', e => dgPointer(e));
+document.addEventListener('pointerup', e => { if (DG.g) DG.g.down = false; });
+document.addEventListener('pointercancel', () => { if (DG.g) DG.g.down = false; });
+document.addEventListener('visibilitychange', () => { if (!DG.on) return; DG.paused = document.hidden; DG.last = performance.now(); });
+
 /* ================= rendering ================= */
 const ICON = {
   pj:(cls) => `<svg class="pj ${cls || ''}" viewBox="0 0 40 32" aria-hidden="true"><path d="M7 30 L14 12 L21 30" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="7" cy="23" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/><g class="beam"><rect x="3" y="10" width="28" height="3.2" rx="1" fill="currentColor"/><path d="M30 7.5 q6 4 0 8.5 z" fill="currentColor"/><path d="M34 16 V29" stroke="currentColor" stroke-width="1.3"/></g><path d="M1 30.5H39" stroke="currentColor" stroke-width="2"/></svg>`,
@@ -1761,8 +2077,9 @@ function renderTabs(){
 }
 function coach(){
   if (S.stats.leases === 0) return 'Tap a section of land, then talk to the owner. Get that first lease signed.';
-  if (!S.wells.length) return "See the orange flags? That's your lease. Tap it and drill a well.";
-  if (drillWells().length && S.stats.wells === 0) return "Rig's turning. Open the Wells tab and mash Push to make hole faster.";
+  if (!S.wells.length) return "See the orange flags? That's your lease. Tap it and drill a well. You steer the bit yourself.";
+  if (drillWells().length && S.stats.wells === 0) return "Crew's drilling. Open the Wells tab and mash Push to make hole faster.";
+  if (S.stats.dry > 0 && S.stats.surveys === 0) return 'Missing the pay zone? Survey first. It puts a target line on your drilling screen.';
   if (S.bbl > tankCap() * .6 && !lvl('pipe')) return 'Your tanks are filling up. Hit SELL before oil spills on the ground.';
   if (S.stats.wells > 0 && S.stats.ups === 0) return 'Spend some of that money on Upgrades. A Tank Farm lets you wait for a better price.';
   const ch = CHAPTERS[S.story.ch];
@@ -1950,11 +2267,15 @@ function renderSheet(force){
     </div>`;
   } else {
     const free = ws.length < slots(t), rig = drillWells().length < rigCap();
-    const note = !free ? 'Every well slot on this lease is used.' : !rig ? `All ${rigCap()} rig${rigCap() > 1 ? 's are' : ' is'} busy. Buy Rig Fleet to drill more at once.` : '';
+    const note = !free ? 'Every well slot on this lease is used.' : !rig ? `All ${rigCap()} crew rig${rigCap() > 1 ? 's are' : ' is'} busy. You can still drill it yourself.` : 'Drill it yourself for a bigger well. The crew drills in the background while you do other things.';
     actions = `${t.surveyed ? '' : `<button class="btn alt block col" data-a="survey" data-r="${t.r}" data-i="${t.i}" data-cost="${surveyCost(t.r)}">Survey before drilling<small>${moneyS(surveyCost(t.r))}</small></button>`}
       <div class="btns">
-        <button class="btn go col" data-a="drill" data-r="${t.r}" data-i="${t.i}" data-k="v" ${free && rig ? `data-cost="${drillCost(t.r, 'v')}"` : 'disabled'}>Drill vertical<small>${moneyS(drillCost(t.r, 'v'))} · ${Math.round(drillTime('v'))}s</small></button>
-        <button class="btn col" data-a="drill" data-r="${t.r}" data-i="${t.i}" data-k="h" ${free && rig && lvl('horiz') ? `data-cost="${drillCost(t.r, 'h')}"` : 'disabled'}>Drill horizontal<small>${lvl('horiz') ? moneyS(drillCost(t.r, 'h')) + ' · ' + Math.round(drillTime('h')) + 's' : 'Needs upgrade'}</small></button>
+        <button class="btn go col" data-a="drillGame" data-r="${t.r}" data-i="${t.i}" data-k="v" ${free ? `data-cost="${drillCost(t.r, 'v')}"` : 'disabled'}>Drill vertical<small>${moneyS(drillCost(t.r, 'v'))} · you steer</small></button>
+        <button class="btn go col" data-a="drillGame" data-r="${t.r}" data-i="${t.i}" data-k="h" ${free && lvl('horiz') ? `data-cost="${drillCost(t.r, 'h')}"` : 'disabled'}>Drill horizontal<small>${lvl('horiz') ? moneyS(drillCost(t.r, 'h')) + ' · you steer' : 'Needs upgrade'}</small></button>
+      </div>
+      <div class="btns">
+        <button class="btn alt sm col" data-a="drill" data-r="${t.r}" data-i="${t.i}" data-k="v" ${free && rig ? `data-cost="${drillCost(t.r, 'v')}"` : 'disabled'}>Crew drills vertical<small>${Math.round(drillTime('v'))}s · average well</small></button>
+        <button class="btn alt sm col" data-a="drill" data-r="${t.r}" data-i="${t.i}" data-k="h" ${free && rig && lvl('horiz') ? `data-cost="${drillCost(t.r, 'h')}"` : 'disabled'}>Crew drills horizontal<small>${lvl('horiz') ? Math.round(drillTime('h')) + 's · average well' : 'Needs upgrade'}</small></button>
       </div>${note ? `<p class="sub" style="margin:0">${note}</p>` : ''}`;
   }
   $('#sheet').innerHTML = `<div class="grab"></div><button class="x" data-a="closeSheet" aria-label="Close">×</button><div class="stack">

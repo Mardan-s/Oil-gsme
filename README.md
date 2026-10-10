@@ -12,7 +12,7 @@ It's one HTML file with no build step and no dependencies. Open `index.html` in 
 ## How to play
 
 1. **Lease.** Tap a section on the plat map. Survey it to learn the geology, then talk to the owner. Raise the per-acre bonus or give a bigger royalty (1/8 up to 1/4). Small talk, brisket and hardball can move them, but their patience runs out.
-2. **Drill.** Choose vertical, or horizontal once you've unlocked it. Tap **Push** to make hole faster. Rich rock gives big wells and sometimes gushers. Poor rock gives dry holes.
+2. **Drill.** You steer the bit yourself. Drag left and right to dodge hard rock, old wellbores and gas pockets, grab oil shows, and land in the sweet spot of the real formation (Wolfcamp, Eagle Ford, Bakken...). Hit a gas pocket and you have to tap fast to kill the kick before it blows out. Horizontal wells then ride the pay zone for two miles: hold to climb, let go to drop. The better you drill, the bigger the well. The crew can also drill in the background for an average result.
 3. **Sell.** Oil fills your tanks, and once they're full the extra spills. Tap **SELL** when the price is good, or build a pipeline that sells automatically above a floor price you set.
 4. **Manage.** Wells decline like real shale wells. Refrac tired wells, fix breakdowns, and handle field events like kicks, haboobs, H2S alarms, Railroad Commission inspectors and royalty lawsuits.
 5. **Expand.** Open new basins: Midland, Eagle Ford, Bakken, then deepwater Green Canyon.
