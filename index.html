@@ -1,0 +1,1284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#17130e">
+<style>:root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)} /* standalone-only */</style>
+<title>Permian Wildcatter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: one-screen phone app. Crude-black HUD on top (cash, WTI, tanks), a plat-map of survey sections in the middle, tab bar at the bottom. */
+:root{
+  --crude:#17130e; --crude-2:#2a2219; --brass:#e3b04b; --flare:#f06a1d; --flare-ink:#1a0f06;
+  --plat:#cdbd99; --caliche:#e2d6ba; --paper:#f1e9d6; --ink:#33281b; --mute:#77664d; --line:rgba(51,40,27,.24);
+  --sage:#4f7a43; --rust:#a63a24; --hud-fg:#efe4cc; --hud-mute:#a8977a;
+  --f-display:'Alfa Slab One','Rockwell','Roboto Slab',Georgia,serif;
+  --f-body:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-num:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;
+  color-scheme:light;
+}
+html{box-sizing:border-box;height:100%;background:var(--crude)}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none!important}
+body{height:100%;margin:0;background:var(--crude);color:var(--ink);font:15px/1.4 var(--f-body);overflow:hidden;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+button{font:inherit;color:inherit;touch-action:manipulation;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--flare);outline-offset:2px}
+#app{height:100%;display:flex;flex-direction:column;max-width:560px;margin:0 auto;background:var(--plat)}
+
+/* HUD */
+.hud{flex:none;background:var(--crude);color:var(--hud-fg);padding:10px 16px 0}
+.hud-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.co{min-width:0}
+.rank{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:600 11px/1 var(--f-num);letter-spacing:.12em;text-transform:uppercase;color:var(--hud-mute)}
+.cash{font:28px/1.05 var(--f-display);color:var(--brass);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rate{font:600 13px/1.1 var(--f-num);color:var(--hud-mute);font-variant-numeric:tabular-nums}
+.wti{display:flex;align-items:center;gap:8px;flex:none}
+.wti-l{text-align:right;font-family:var(--f-num)}
+.wti-l span{display:block;font-size:11px;letter-spacing:.12em;color:var(--hud-mute);font-weight:600}
+.wti-l b{display:block;font-size:20px;line-height:1;font-variant-numeric:tabular-nums}
+.wti-l i{display:block;font-style:normal;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.up{color:#8fc27a}.dn{color:#ff8a6a}
+#spark{width:84px;height:34px;display:block}
+.hud-tank{display:flex;gap:8px;margin-top:10px}
+.tank{flex:1;min-width:0;background:var(--crude-2);border:1px solid #3d3226;border-radius:10px;padding:8px 10px;text-align:left;display:flex;flex-direction:column;gap:6px}
+.tank-meter{height:10px;border-radius:5px;background:#120e0a;overflow:hidden;border:1px solid #3d3226}
+.tank-fill{height:100%;width:0;background:var(--brass);transition:width .25s linear}
+.tank.full .tank-fill{background:var(--flare);animation:blink .6s steps(2) infinite}
+.tank-l{display:flex;justify-content:space-between;gap:6px;font:600 12px/1 var(--f-num);color:var(--hud-mute);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tank-l span:first-child{color:var(--hud-fg)}
+.sell{flex:none;min-width:116px;border:0;border-radius:10px;background:var(--flare);color:var(--flare-ink);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 12px;box-shadow:0 3px 0 #9c3f0b}
+.sell:active{transform:translateY(2px);box-shadow:0 1px 0 #9c3f0b}
+.sell b{font:18px/1 var(--f-display);letter-spacing:.02em}
+.sell span{font:700 13px/1.2 var(--f-num);font-variant-numeric:tabular-nums}
+.sell:disabled{opacity:.5}
+.ticker{margin:10px -16px 0;overflow:hidden;white-space:nowrap;border-top:1px solid #3d3226;background:#0f0c09;font:600 12px/26px var(--f-num);letter-spacing:.04em;color:var(--hud-mute)}
+.ticker span{display:inline-block;padding-left:100%;animation:marquee 38s linear infinite}
+
+/* Main area */
+main{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:14px 16px 24px;-webkit-overflow-scrolling:touch;
+  background-color:var(--plat);
+  background-image:repeating-linear-gradient(0deg,transparent 0 47px,var(--line) 47px 48px),repeating-linear-gradient(90deg,transparent 0 47px,var(--line) 47px 48px)}
+.stack{display:flex;flex-direction:column;gap:12px}
+h2{font:22px/1.1 var(--f-display);margin:0;text-wrap:balance;color:var(--ink)}
+h3{font:600 12px/1 var(--f-num);letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin:6px 0 0}
+.sub{font:600 13px/1.3 var(--f-num);color:var(--mute);letter-spacing:.02em}
+.coach{background:var(--crude);color:var(--hud-fg);border-radius:10px;padding:10px 12px;font-weight:500;display:flex;gap:10px;align-items:flex-start}
+.coach b{color:var(--brass);font:12px/1.5 var(--f-display);flex:none}
+
+/* Regions */
+.regions{display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:2px 16px 4px;scrollbar-width:none}
+.regions::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1.5px solid var(--ink);background:var(--caliche);border-radius:999px;padding:7px 12px;font:600 13px/1 var(--f-num);white-space:nowrap}
+.chip.on{background:var(--ink);color:var(--paper)}
+.chip.lock{border-style:dashed;color:var(--mute)}
+.chip.lock:disabled{opacity:.6}
+
+/* Plat map */
+.platwrap{background:var(--caliche);border:2px solid var(--ink);padding:8px;border-radius:4px}
+.plat-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;font:600 11px/1.2 var(--f-num);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.plat{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.tile{position:relative;aspect-ratio:1/1.08;max-width:100%;border:1.5px solid var(--ink);border-radius:2px;background:color-mix(in srgb,var(--crude) var(--p,0%),var(--paper));display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:3px 2px;font-family:var(--f-num);color:var(--ink);overflow:hidden}
+.tile .tl{font-size:10.5px;font-weight:700;line-height:1;white-space:nowrap}
+.tile .ta{font-size:10px;font-weight:600;line-height:1;opacity:.75}
+.tile svg{width:62%;height:auto;flex:1;min-height:0}
+.tile .q{flex:1;display:flex;align-items:center;font:18px/1 var(--f-display);opacity:.35}
+.tile.dark{color:var(--paper)}
+.tile.leased{outline:2px solid var(--flare);outline-offset:-4px}
+.tile.cd{background:repeating-linear-gradient(45deg,var(--caliche) 0 5px,var(--plat) 5px 10px)}
+.tile.dry{background:#b8ad97;color:#5d5444}
+.tile .hot{position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--flare);box-shadow:0 0 0 2px var(--paper)}
+.tile .tbar{position:absolute;left:3px;right:3px;bottom:3px;height:4px;background:rgba(0,0,0,.25);border-radius:2px;overflow:hidden}
+.tile .tbar i{display:block;height:100%;background:var(--flare);width:0}
+.tile .band{position:absolute;top:2px;left:3px;font-size:9px;font-weight:700;letter-spacing:.06em}
+.tile.down svg{color:var(--rust)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font:600 12px/1 var(--f-num);color:var(--mute)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:12px;height:12px;border:1.5px solid var(--ink);display:inline-block}
+
+/* Cards, rows, buttons */
+.card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px}
+.row{display:flex;align-items:center;gap:10px;min-width:0}
+.row .grow{flex:1;min-width:0}
+.btn{min-height:44px;border:0;border-radius:9px;padding:0 14px;background:var(--ink);color:var(--paper);font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-align:center;line-height:1.15}
+.btn small{font:600 12px/1 var(--f-num);opacity:.8;font-variant-numeric:tabular-nums}
+.btn.go{background:var(--flare);color:var(--flare-ink);box-shadow:0 3px 0 #9c3f0b}
+.btn.go:active{transform:translateY(2px);box-shadow:0 1px 0 #9c3f0b}
+.btn.alt{background:transparent;color:var(--ink);border:1.5px solid var(--ink)}
+.btn.sm{min-height:36px;padding:0 10px;font-size:14px}
+.btn.block{width:100%}
+.btn:disabled{opacity:.42;box-shadow:none}
+.btn.col{flex-direction:column;gap:3px;padding:8px 10px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btns.one{grid-template-columns:1fr}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:600}
+.k{font:600 11px/1 var(--f-num);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.bar{height:8px;background:rgba(51,40,27,.14);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--flare);width:0;transition:width .2s linear}
+.bar.sage i{background:var(--sage)}
+.bar.brass i{background:var(--brass)}
+.pill{display:inline-block;font:700 11px/1 var(--f-num);letter-spacing:.06em;text-transform:uppercase;padding:4px 7px;border-radius:999px;background:var(--plat);color:var(--ink);white-space:nowrap}
+.pill.good{background:var(--sage);color:var(--paper)}
+.pill.bad{background:var(--rust);color:var(--paper)}
+.pill.warn{background:var(--brass);color:var(--crude)}
+.pill.dark{background:var(--ink);color:var(--paper)}
+.muted{color:var(--mute)}
+.empty{text-align:center;padding:28px 16px;color:var(--mute)}
+.empty svg{width:80px;color:var(--ink);opacity:.5}
+
+/* Wells */
+.well{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center}
+.well svg{width:44px;color:var(--ink)}
+.well.down svg{color:var(--rust)}
+.well .wn{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.well .wm{font:600 13px/1.3 var(--f-num);color:var(--mute);font-variant-numeric:tabular-nums}
+.sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.sum div{min-width:0}
+.sum b{display:block;font:20px/1.1 var(--f-display);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Pumpjack + derrick animation */
+.pj .beam{transform-box:view-box;transform-origin:14px 11.6px;animation:nod 2.6s ease-in-out infinite}
+.pj.slow .beam{animation-duration:4s}
+.down .pj .beam,.pj.stop .beam{animation:none}
+.rig .bit{animation:bob .5s ease-in-out infinite alternate}
+@keyframes nod{0%,100%{transform:rotate(-10deg)}50%{transform:rotate(10deg)}}
+@keyframes bob{from{transform:translateY(0)}to{transform:translateY(2px)}}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+@keyframes blink{50%{opacity:.4}}
+
+/* Upgrades / goals */
+.up-c{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center}
+.up-c .un{font-weight:700}
+.lv{display:flex;gap:2px;margin-top:6px;flex-wrap:wrap}
+.lv i{width:10px;height:6px;border-radius:1px;background:rgba(51,40,27,.18)}
+.lv i.on{background:var(--brass)}
+.goal.done{border-color:var(--sage);box-shadow:inset 0 0 0 1px var(--sage)}
+.goal.claimed{opacity:.55}
+
+/* Bottom sheet */
+#sheet-wrap,#modal-wrap{position:fixed;inset:0;z-index:20;display:flex;justify-content:center}
+#sheet-wrap{align-items:flex-end}
+#modal-wrap{align-items:center;padding:16px;z-index:30;background:rgba(10,8,5,.7)}
+.scrim{position:absolute;inset:0;background:rgba(10,8,5,.55);border:0;width:100%}
+.sheet{position:relative;width:100%;max-width:560px;max-height:88%;overflow-y:auto;overscroll-behavior:contain;background:var(--paper);border-radius:16px 16px 0 0;padding:8px 16px calc(20px + env(safe-area-inset-bottom,0px));animation:slideup .22s ease-out}
+.grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:2px auto 10px}
+.sheet .x{position:absolute;top:10px;right:10px;width:40px;height:40px;border-radius:50%;border:0;background:var(--caliche);font:700 18px/1 var(--f-body)}
+@keyframes slideup{from{transform:translateY(40%);opacity:.4}to{transform:none;opacity:1}}
+.modal{width:100%;max-width:420px;max-height:100%;overflow-y:auto;background:var(--paper);border:2px solid var(--ink);border-radius:14px;padding:18px 16px;display:flex;flex-direction:column;gap:12px;animation:pop .2s ease-out}
+.modal h2{font-size:24px}
+.modal p{margin:0}
+.modal .eyebrow{font:600 11px/1 var(--f-num);letter-spacing:.14em;text-transform:uppercase;color:var(--flare)}
+@keyframes pop{from{transform:scale(.94);opacity:0}to{transform:none;opacity:1}}
+.choice{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:10px 14px;min-height:52px}
+.choice small{margin-top:3px}
+
+/* Negotiation */
+.owner{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;align-items:center}
+.owner .on{font:19px/1.1 var(--f-display)}
+.bubble{position:relative;background:var(--caliche);border:1.5px solid var(--ink);border-radius:12px;padding:10px 12px;font-weight:500}
+.bubble::before{content:"";position:absolute;top:-8px;left:22px;border:8px solid transparent;border-top:0;border-bottom-color:var(--ink)}
+.bubble.mad{background:#f0c9b8}
+.bubble.happy{background:#cfe0bf}
+.pat{display:flex;gap:4px;align-items:center}
+.pat i{width:12px;height:12px;border-radius:50%;background:var(--brass);border:1.5px solid var(--ink)}
+.pat i.off{background:transparent}
+.seg{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.seg button{min-height:42px;border:1.5px solid var(--ink);border-radius:8px;background:transparent;font:700 15px/1 var(--f-num)}
+.seg button.on{background:var(--ink);color:var(--paper)}
+.seg button:disabled{opacity:.35}
+input[type=range]{width:100%;height:36px;accent-color:var(--flare);margin:0}
+.tactics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.tactics .btn{font-size:13px;padding:6px 4px;min-height:48px}
+.gut{font:600 13px/1.3 var(--f-num);color:var(--mute)}
+.offer-total{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.offer-total b{font:22px/1 var(--f-display);font-variant-numeric:tabular-nums}
+
+/* Tabs */
+.tabs{flex:none;display:grid;grid-template-columns:repeat(5,1fr);background:var(--crude);border-top:1px solid #3d3226}
+.tabs button{position:relative;background:none;border:0;color:var(--hud-mute);display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px 9px;font:600 11px/1 var(--f-num);letter-spacing:.06em;text-transform:uppercase;min-height:54px}
+.tabs button svg{width:24px;height:24px}
+.tabs button.on{color:var(--brass)}
+.tabs .dot{position:absolute;top:6px;left:calc(50% + 8px);min-width:16px;height:16px;border-radius:8px;background:var(--flare);color:var(--flare-ink);font:700 10px/16px var(--f-num);padding:0 4px}
+
+/* Toasts, fx */
+#toasts{position:fixed;left:0;right:0;bottom:calc(66px + env(safe-area-inset-bottom,0px));z-index:40;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;padding:0 16px}
+.toast{max-width:420px;background:var(--crude);color:var(--hud-fg);border-left:4px solid var(--brass);border-radius:8px;padding:9px 12px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.35);animation:pop .2s ease-out}
+.toast.bad{border-left-color:var(--rust)}
+.toast.good{border-left-color:var(--sage)}
+#toasts.top{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px))}
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:50}
+#banner{position:fixed;left:0;right:0;top:38%;z-index:51;text-align:center;pointer-events:none;font:clamp(40px,13vw,72px)/1 var(--f-display);color:var(--brass);text-shadow:0 4px 0 var(--crude),0 0 30px rgba(240,106,29,.6);opacity:0}
+#banner.show{animation:bannerIn 2.2s ease-out forwards}
+#banner small{display:block;font:700 18px/1.4 var(--f-num);color:var(--hud-fg);text-shadow:0 2px 0 var(--crude);letter-spacing:.06em}
+@keyframes bannerIn{0%{opacity:0;transform:scale(.6) rotate(-4deg)}12%{opacity:1;transform:scale(1.12) rotate(2deg)}20%{transform:scale(1) rotate(-1deg)}80%{opacity:1}100%{opacity:0;transform:translateY(-30px)}}
+.floaty{position:fixed;z-index:52;pointer-events:none;font:22px/1 var(--f-display);color:var(--brass);text-shadow:0 2px 0 var(--crude);animation:floatUp 1.1s ease-out forwards;white-space:nowrap}
+@keyframes floatUp{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,-70px)}}
+.shake{animation:shake .45s}
+@keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.stats div{min-width:0}
+.stats b{display:block;font:600 18px/1.2 var(--f-num);font-variant-numeric:tabular-nums}
+.name-in{width:100%;min-height:44px;border:1.5px solid var(--ink);border-radius:8px;background:var(--caliche);padding:0 12px;font:20px var(--f-display);color:var(--ink);-webkit-user-select:text;user-select:text}
+.howto{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+
+@media (prefers-reduced-motion:reduce){
+  .pj .beam,.rig .bit,.ticker span,.tank.full .tank-fill{animation:none}
+  .ticker span{padding-left:16px}
+  .sheet,.modal,.toast{animation:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="hud">
+    <div class="hud-top">
+      <div class="co">
+        <div class="rank" id="h-rank">Lease Hound</div>
+        <div class="cash" id="h-cash">$40,000</div>
+        <div class="rate" id="h-rate">+$0/s</div>
+      </div>
+      <div class="wti">
+        <div class="wti-l"><span>WTI CRUDE</span><b id="h-price">$72.00</b><i id="h-delta">&nbsp;</i></div>
+        <canvas id="spark" width="168" height="68" aria-hidden="true"></canvas>
+      </div>
+    </div>
+    <div class="hud-tank">
+      <button class="tank" id="h-tank" data-a="autoSheet" aria-label="Tank storage and auto-sell settings">
+        <div class="tank-meter"><div class="tank-fill" id="h-fill"></div></div>
+        <div class="tank-l"><span id="h-bbl">0 / 600 bbl</span><span id="h-auto">Tanks</span></div>
+      </button>
+      <button class="sell" id="h-sell" data-a="sell"><b>SELL</b><span id="h-sellv">$0</span></button>
+    </div>
+    <div class="ticker" aria-hidden="true"><span id="tick-t">Rig count in the Permian up 4 this week</span></div>
+  </header>
+  <main id="main"></main>
+  <nav class="tabs" id="tabs"></nav>
+</div>
+<div id="sheet-wrap" hidden><button class="scrim" data-a="closeSheet" aria-label="Close"></button><div class="sheet" id="sheet"></div></div>
+<div id="modal-wrap" hidden><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+<div id="toasts" aria-live="polite"></div>
+<canvas id="fx"></canvas>
+<div id="banner"></div>
+
+<script>
+'use strict';
+/* ================= helpers ================= */
+const $ = s => document.querySelector(s);
+const rand = Math.random, rint = n => Math.floor(rand() * n), pick = a => a[rint(a.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function randn(){ let u = 0, v = 0; while (!u) u = rand(); while (!v) v = rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+const UNITS = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc'];
+function fmt(n){
+  if (!isFinite(n)) return '0';
+  const neg = n < 0; n = Math.abs(n);
+  if (n < 1000) return (neg ? '-' : '') + Math.floor(n).toLocaleString('en-US');
+  if (n < 1e6) return (neg ? '-' : '') + Math.floor(n).toLocaleString('en-US');
+  let i = 0; while (n >= 1000 && i < UNITS.length - 1){ n /= 1000; i++; }
+  return (neg ? '-' : '') + (n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2)) + UNITS[i];
+}
+function short(n){ // compact for tight spaces
+  if (n < 1000) return Math.floor(n).toString();
+  let i = 0; while (n >= 1000 && i < UNITS.length - 1){ n /= 1000; i++; }
+  return (n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2)) + UNITS[i];
+}
+const money = n => (n < 0 ? '-$' : '$') + fmt(Math.abs(n));
+const moneyS = n => '$' + short(Math.max(0, n));
+const rateStr = n => n < 10 ? n.toFixed(2) : n < 1000 ? n.toFixed(1) : short(n);
+const moneyRate = n => n < 10 ? '$' + n.toFixed(2) : moneyS(n);
+function nice(n){ // round to a friendly figure for counteroffers
+  const m = Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(1, n))) - 1));
+  return Math.ceil(n / m) * m;
+}
+function clock(s){ s = Math.max(0, Math.ceil(s)); const m = Math.floor(s / 60), r = s % 60; return m + ':' + String(r).padStart(2, '0'); }
+function dur(s){ s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h ? `${h}h ${m}m` : `${m}m ${s % 60}s`; }
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ================= data ================= */
+const COLS = 5, ROWS = 6;
+const REG = [
+  { id:'reeves',   name:'Reeves County',   sub:'Delaware Basin · Texas',   mult:1,    unlock:0,     acres:[160,320,320,480,640], blk:'Blk 57, T&P RR Co. Survey', lab:t => `Sec ${t.sec}` },
+  { id:'midland',  name:'Midland County',  sub:'Midland Basin · Texas',    mult:8,    unlock:4e5,   acres:[320,320,480,640,640], blk:'Blk 38, T-1-S, T&P RR Co.', lab:t => `Sec ${t.sec}` },
+  { id:'karnes',   name:'Karnes County',   sub:'Eagle Ford · Texas',       mult:60,   unlock:5e6,   acres:[160,320,480,640],     blk:'Survey abstracts',          lab:t => `A-${t.sec * 13 + 40}` },
+  { id:'mckenzie', name:'McKenzie County', sub:'Bakken · North Dakota',    mult:450,  unlock:6e7,   acres:[640,640,1280],        blk:'T150N R95W',                lab:t => `Sec ${t.sec}` },
+  { id:'gulf',     name:'Green Canyon',    sub:'Deepwater Gulf · Federal', mult:4000, unlock:6e8,   acres:[5760],                blk:'OCS Green Canyon Area',     lab:t => `GC ${t.sec * 4 + 400}` },
+];
+const ROY = [{v:.125,l:'1/8'},{v:.1875,l:'3/16'},{v:.2,l:'1/5'},{v:.225,l:'9/40'},{v:.25,l:'1/4'}];
+const TYPES = {
+  rancher:  { name:'Stubborn Rancher',   need:1.3,  pat:3, talk:.75, gift:.9,  hard:.25, royW:6,
+    greet:["Last fella from Houston wore loafers on my land. You ain't wearin' loafers, are ya?", "My granddaddy ran cattle here before there was a road. Say your piece."] },
+  widow:    { name:'Ranch Widow',        need:1.0,  pat:4, talk:.6,  gift:.85, hard:.15, royW:6,
+    greet:["Harold always said there was oil under this ground. Coffee's on. Sit.", "You're the third landman this month. The other two didn't wipe their boots."] },
+  heirs:    { name:'Feuding Heirs',      need:1.2,  pat:2, talk:.3,  gift:.95, hard:.7,  royW:7,
+    greet:["My brother wants a quarter royalty. My sister wants my brother dead. What're you offerin'?", "There's six of us on the deed and we agree on nothing. Talk fast."] },
+  lawyer:   { name:'Dallas Lawyer',      need:1.35, pat:3, talk:.1,  gift:1,   hard:.5,  royW:9,
+    greet:["I have eleven minutes before my tee time. Make them count.", "I inherited this from an uncle I never met. I bill five hundred an hour. Go."] },
+  roughneck:{ name:'Retired Roughneck',  need:1.05, pat:3, talk:.8,  gift:.9,  hard:.45, royW:6,
+    greet:["Worked the Spraberry forty years. Don't feed me a line, partner.", "I've been on more rigs than you've had hot meals. Let's hear the number."] },
+  church:   { name:'Church Trustees',    need:1.1,  pat:3, talk:.5,  gift:.8,  hard:.2,  royW:6,
+    greet:["The Lord provides. So does a fair bonus. The new roof isn't going to pay for itself.", "The board meets Wednesdays. You've caught three of us on a Tuesday. Speak."] },
+  farmer:   { name:'Wheat Farmer',       need:1.15, pat:3, talk:.7,  gift:.88, hard:.35, royW:6,
+    greet:["Wheat's lousy this year and the wind's worse. You got something better?", "Forty below last January and the pickup still started. I'm not easy to impress."] },
+  boem:     { name:'Federal Lease Sale', need:1.1,  pat:1, talk:0,   gift:1,   hard:0,   royW:6, fixedRoy:.1875,
+    greet:["Sealed bids only. Royalty is fixed at 18.75%. One bid per sale. No pie."] },
+};
+const LINES = {
+  accept:["Pleasure doin' business.","Where do I sign?","Fine. Don't make me regret it.","Shake on it. Now get off my porch, I got cows to feed.","Well alright then. Pen's on the table."],
+  counter:[x => `I'd sign at ${x} an acre. Not a nickel less.`, x => `Get me to ${x} an acre and we got a deal.`, x => `${x} an acre. That's what the Wilsons got and their place is half rattlesnakes.`],
+  low:["That's low. Real low.","My neighbor got more than that for worse dirt.","Try again, partner.","You're gonna have to do better than that."],
+  insult:["You come on my porch with THAT?","I've had better offers from the coyotes.","Son of a... are you serious right now?"],
+  walk:["We're done here. Come back when you've learned some manners.","Door's that way. Use it.","Get off my land before I get the dogs."],
+  talkOk:["Ha! You know the Permian Panthers' coach? Small world.","Well, any friend of the feed store's a friend of mine.","Alright, you're not as slick as the last one. I like that."],
+  talkBad:["I don't need a buddy. I need a number.","Save the small talk, I've got a hay delivery at two."],
+  giftOk:["Is that brisket from the place on the highway? ...Sit down.","Well now. Nobody's brought me food in years."],
+  giftBad:["I'm vegetarian. Since Tuesday.","Bribing me with meat. Bold."],
+  hardOk:["Hold on now, hold on. Let's not get hasty.","Alright, alright. Sit back down."],
+  hardBad:["Then walk. See if I care.","Nobody threatens me on my own porch."],
+};
+const FIRST = ['Earl','Darlene','Buck','Wanda','Clayton','Merle','Ruth Ann','Dale','Lupe','Hector','Bobbie Jo','Waylon','Inez','Cecil','Tuck','Loretta','Royce','Pearl','Amos','Delia','Rusty','Nell','Otis','Marisol','Gus','Opal'];
+const LAST = ['Pruitt','Halvorsen','Garza','McCaskill','Tate','Odom','Villarreal','Brister','Kimbrough','Yates','Dunagan','Sheffield','Nygaard','Cantu','Holloway','Rasmussen','Pickett','Salazar','Wiley','Strand'];
+
+const UPG = [
+  { id:'silver', name:'Silver Tongue',          d:'Owners settle for 4% less per level. Your gut read gets sharper.', base:6000,  g:2.1,  max:10 },
+  { id:'tanks',  name:'Tank Farm',              d:'Store 70% more oil per level.', base:4000, g:1.85, max:25 },
+  { id:'frac',   name:'Frac Crews',             d:'New wells come in 12% stronger per level.', base:15000, g:1.9, max:20 },
+  { id:'geo',    name:'Geologist on Retainer',  d:'Surveys cost 15% less. Level 2 reads exact potential.', base:5000, g:2.3, max:5 },
+  { id:'rigs',   name:'Rig Fleet',              d:'One more rig drilling at once, and 12% faster drilling.', base:20000, g:2.6, max:10 },
+  { id:'lift',   name:'Artificial Lift',        d:'Wells decline 6% slower and hold a higher floor.', base:25000, g:2.2, max:10 },
+  { id:'crew',   name:'Field Crew',             d:'Fewer breakdowns. Crews fix downed wells on their own, faster each level.', base:12000, g:2.2, max:8 },
+  { id:'pipe',   name:'Pipeline Connection',    d:'Sells oil automatically. 85% of spot at level 1, +3% per level.', base:40000, g:2.5, max:8 },
+  { id:'horiz',  name:'Horizontal Drilling',    d:'Unlocks horizontal wells: 3.5× cost, 4× oil. +15% per extra level.', base:60000, g:2.4, max:8 },
+  { id:'lawyers',name:'Oilfield Lawyers',       d:'Fines and settlements cost 12% less. Better odds in court.', base:30000, g:2.4, max:6 },
+];
+const RANKS = [[0,'Lease Hound'],[5e4,'Landman'],[2.5e5,'Senior Landman'],[1e6,'Operator'],[1e7,'Wildcatter'],[1e8,'Independent'],[1e9,'Oil Baron'],[1e10,'Basin King'],[1e11,'Legend of the Patch'],[1e13,'Crude God']];
+const PRESTIGE_AT = 2.5e7;
+
+const GOALS = [
+  { id:'lease1',  n:'Dotted line',        d:'Sign your first lease',           c:()=>S.stats.leases >= 1,   r:5000 },
+  { id:'survey1', n:'Read the rocks',     d:'Run a geology survey',            c:()=>S.stats.surveys >= 1,  r:2500 },
+  { id:'well1',   n:'Spud in',            d:'Complete your first well',        c:()=>S.stats.wells >= 1,    r:8000 },
+  { id:'sell1',   n:'First check',        d:'Sell 500 barrels',                c:()=>S.stats.sold >= 500,   r:5000 },
+  { id:'up3',     n:'Tooling up',         d:'Buy 3 upgrades',                  c:()=>S.stats.ups >= 3,      r:12000 },
+  { id:'leases3', n:'Lease hound',        d:'Hold 3 leases',                   c:()=>leaseCount() >= 3,    r:15000 },
+  { id:'wells5',  n:'Five pumping',       d:'Have 5 producing wells',          c:()=>prodWells().length >= 5, r:30000 },
+  { id:'dry',     n:'Dusters happen',     d:'Drill a dry hole',                c:()=>S.stats.dry >= 1,      r:10000 },
+  { id:'gusher',  n:'Thar she blows',     d:'Strike a gusher',                 c:()=>S.stats.gushers >= 1,  r:25000 },
+  { id:'earn250', n:'Quarter million',    d:'Earn $250K this run',             c:()=>S.stats.earned >= 2.5e5, r:50000 },
+  { id:'midland', n:'Field office',       d:'Open Midland County',             c:()=>S.unlocked.includes(1), r:1e5 },
+  { id:'horiz',   n:'Turn to the right',  d:'Drill a horizontal well',         c:()=>S.stats.horiz >= 1,    r:1.5e5 },
+  { id:'leases10',n:'Big spread',         d:'Hold 10 leases',                  c:()=>leaseCount() >= 10,   r:1.2e5 },
+  { id:'high',    n:'Sold the top',       d:'Sell oil at $100+ a barrel',      c:()=>S.stats.best >= 100,   r:2e5 },
+  { id:'sold50k', n:'Tank farm',          d:'Sell 50,000 barrels',             c:()=>S.stats.sold >= 5e4,   r:2.5e5 },
+  { id:'wells15', n:'Patch boss',         d:'Have 15 producing wells',         c:()=>prodWells().length >= 15, r:4e5 },
+  { id:'rep25',   n:'Good ol\' boy',      d:'Reach 25 reputation',             c:()=>S.rep >= 25,           r:3e5 },
+  { id:'earn5m',  n:'Five million',       d:'Earn $5M this run',               c:()=>S.stats.earned >= 5e6, r:7.5e5 },
+  { id:'karnes',  n:'Eagle Ford',         d:'Open Karnes County',              c:()=>S.unlocked.includes(2), r:2e6 },
+  { id:'gush10',  n:'Lucky streak',       d:'Strike 10 gushers',               c:()=>S.stats.gushers >= 10, r:5e6 },
+  { id:'wells40', n:'Field superintendent',d:'Have 40 producing wells',        c:()=>prodWells().length >= 40, r:1e7 },
+  { id:'bakken',  n:'Cold money',         d:'Open McKenzie County',            c:()=>S.unlocked.includes(3), r:2.5e7 },
+  { id:'earn100m',n:'Nine figures',       d:'Earn $100M this run',             c:()=>S.stats.earned >= 1e8, r:2e7 },
+  { id:'gulf',    n:'Deepwater',          d:'Win a Green Canyon block',        c:()=>S.unlocked.includes(4) && S.regions[4] && S.regions[4].tracts.some(t=>t.st==='leased'), r:2.5e8 },
+  { id:'earn1b',  n:'Billionaire',        d:'Earn $1B this run',               c:()=>S.stats.earned >= 1e9, r:2e8 },
+  { id:'earn100b',n:'Basin royalty',      d:'Earn $100B this run',             c:()=>S.stats.earned >= 1e11, r:2e10 },
+];
+
+const NEWS = [
+  'Rig count in the Permian up 4 this week','Coyote spotted wearing a hard hat near Pecos','Diner on I-20 runs out of chicken fried steak again',
+  'Frac sand trucks backed up two miles on Hwy 285','Local man swears his well is haunted','Railroad Commission reminds public it regulates oil, not trains',
+  'Midland motel rates triple, again','Water hauler wins county chili cook-off','Mineral owner buys third bass boat','Pumper reports rattlesnake in the doghouse, again',
+  'Man camp in Pecos adds second taco truck','Haboob closes Monahans Sandhills for the afternoon','Pipeline crew finds 1950s Cadillac buried in caliche',
+  'Bakken roughnecks report record cold, record overtime','Eagle Ford ranchers turn hunting leases into oil leases','Gas flare visible from space, county commissioners unbothered',
+];
+
+/* ================= state ================= */
+let S;
+function newState(keep){
+  keep = keep || {};
+  const legacy = keep.legacy || 0;
+  return {
+    v:1, t:0, cash:40000 + legacy * 15000, bbl:0, price:72, shock:0, ph:[], ri:0, unlocked:[0], regions:[genRegion(0)],
+    wells:[], up:{}, rep:0, legacy, prestiges:keep.prestiges || 0, lifetime:keep.lifetime || 0, company:keep.company || 'Dust Devil Oil & Gas',
+    sound: keep.sound !== undefined ? keep.sound : true, autoFloor:0,
+    stats:{ leases:0, surveys:0, wells:0, dry:0, gushers:0, sold:0, earned:0, best:0, ups:0, horiz:0, blowouts:0, lost:0 },
+    goals:{}, fx:{}, flags:{}, nextEvent:100, nid:1, savedAt:Date.now(), welcomed:!!keep.welcomed,
+  };
+}
+function genOwner(ri){
+  const types = ri === 4 ? ['boem'] : ri === 3 ? ['farmer','farmer','rancher','heirs','lawyer','widow','church'] : ['rancher','rancher','widow','heirs','lawyer','roughneck','church'];
+  const type = pick(types);
+  return type === 'boem' ? { first:'Bureau of Ocean', last:'Energy Management', type, av:rint(1e5), rf:.95 + rand() * .1 }
+    : { first:pick(FIRST), last:pick(LAST), type, av:rint(1e5), rf:.88 + rand() * .24 };
+}
+function genRegion(ri){
+  const R = REG[ri], n = COLS * ROWS;
+  let f = Array.from({length:n}, () => rand());
+  for (let k = 0; k < 2; k++) f[rint(n)] += 2.2;
+  for (let pass = 0; pass < 2; pass++){
+    f = f.map((v, i) => {
+      const x = i % COLS, y = (i / COLS) | 0; let s = v * 2, c = 2;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx = x + dx, ny = y + dy; if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS){ s += f[ny * COLS + nx]; c++; } }
+      return s / c;
+    });
+  }
+  const mn = Math.min(...f), mx = Math.max(...f);
+  const start = 1 + rint(ri === 3 ? 6 : 16);
+  return { tracts: f.map((v, i) => ({
+    r:ri, i, pot:clamp(Math.pow((v - mn) / (mx - mn), 1.1) * .9 + rand() * .1, .02, .99), acres:pick(R.acres), sec:start + i,
+    owner:genOwner(ri), st:'open', surveyed:false, cd:0, roy:0, neg:null,
+  })) };
+}
+
+/* ================= derived ================= */
+const lvl = id => S.up[id] || 0;
+const upCost = u => u.base * Math.pow(u.g, lvl(u.id));
+const fxOn = k => S.fx[k] && S.fx[k].until > S.t;
+const maxMult = () => Math.max(...S.unlocked.map(i => REG[i].mult));
+const tankCap = () => Math.round(600 * Math.pow(1.7, lvl('tanks')) * Math.pow(maxMult(), .85));
+const incomeMult = () => (1 + .08 * S.legacy) * (fxOn('pe') ? .88 : 1);
+const salePrice = () => fxOn('hedge') ? S.fx.hedge.p : S.price;
+const autoFrac = () => lvl('pipe') ? .85 + .03 * (lvl('pipe') - 1) : 0;
+function wellRate(w){ if (w.st !== 'prod') return 0; const q = w.qi * Math.pow(1 + w.b * w.D * w.age, -1 / w.b); return Math.max(q, w.qi * w.fl); }
+const netRate = () => S.wells.reduce((a, w) => a + wellRate(w) * (1 - w.roy), 0);
+const dollarRate = () => netRate() * salePrice() * incomeMult();
+const prodWells = () => S.wells.filter(w => w.st === 'prod' || w.st === 'down');
+const drillWells = () => S.wells.filter(w => w.st === 'drill');
+const rigCap = () => 1 + lvl('rigs');
+const tractOf = w => S.regions[w.r].tracts[w.i];
+const tractWells = t => S.wells.filter(w => w.r === t.r && w.i === t.i);
+const slots = t => clamp(Math.round(t.acres / 160), 1, 4);
+const leaseCount = () => S.regions.reduce((a, R) => a + (R ? R.tracts.filter(t => t.st === 'leased').length : 0), 0);
+const lab = t => REG[t.r].lab(t);
+const drillCost = (r, k) => 18000 * REG[r].mult * (k === 'h' ? 3.5 : 1) * (fxOn('sand') ? 1.3 : 1);
+const drillTime = k => (k === 'h' ? 45 : 25) / (1 + .12 * lvl('rigs'));
+const surveyCost = r => 2500 * REG[r].mult * Math.pow(.85, lvl('geo'));
+const refracCost = w => drillCost(w.r, w.k) * .35;
+const fixCost = w => drillCost(w.r, 'v') * .03;
+const paCost = w => drillCost(w.r, 'v') * .08;
+function bpa(r){ const R = REG[r]; const avg = R.acres.reduce((a, b) => a + b, 0) / R.acres.length; return 60 * R.mult * 384 / avg; }
+function hot(t){
+  const R = S.regions[t.r]; const x = t.i % COLS, y = (t.i / COLS) | 0; let c = 0;
+  for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+    const nx = x + dx, ny = y + dy; if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+    const n = R.tracts[ny * COLS + nx]; if (tractWells(n).some(w => w.st === 'prod' || w.st === 'down')) c++;
+  }
+  return c;
+}
+const fmv = t => bpa(t.r) * (.55 + t.pot * 1.3) * (1 + hot(t) * .12);
+function band(p){ return p < .25 ? ['Poor','bad'] : p < .5 ? ['Fair','warn'] : p < .75 ? ['Good','good'] : ['Excellent','good']; }
+function rankOf(v){ let r = RANKS[0], nx = null; for (let k = 0; k < RANKS.length; k++){ if (v >= RANKS[k][0]){ r = RANKS[k]; nx = RANKS[k + 1] || null; } } return { r, nx }; }
+function repName(r){ return r <= -20 ? 'Snake in the grass' : r < 0 ? 'Outsider' : r < 20 ? 'Known around town' : r < 40 ? "Good ol' boy" : 'Local legend'; }
+function evMoney(secs, base, fine){ return Math.max(base * maxMult(), dollarRate() * secs) * (fine ? Math.pow(.88, lvl('lawyers')) : 1); }
+function pay(x){ S.cash = Math.max(0, S.cash - x); }
+function tractView(t){
+  const ws = tractWells(t);
+  if (ws.some(w => w.st === 'drill')) return 'drill';
+  if (ws.some(w => w.st === 'down')) return 'down';
+  if (ws.some(w => w.st === 'prod')) return 'prod';
+  if (ws.some(w => w.st === 'dry')) return 'dry';
+  if (t.st === 'leased') return 'leased';
+  if (t.cd > S.t) return 'cd';
+  return 'open';
+}
+
+/* ================= sound ================= */
+let AC = null;
+function beep(f, d, type, vol, delay, to){
+  if (!S.sound) return;
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = AC.currentTime + (delay || 0), o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(f, t0); if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + d);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol || .12, t0 + .01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    o.connect(g).connect(AC.destination); o.start(t0); o.stop(t0 + d + .02);
+  } catch (e) {}
+}
+function noise(d, vol){
+  if (!S.sound) return;
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const len = Math.floor(AC.sampleRate * d), buf = AC.createBuffer(1, len, AC.sampleRate), data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (rand() * 2 - 1) * Math.pow(1 - i / len, 2);
+    const src = AC.createBufferSource(), g = AC.createGain(), fl = AC.createBiquadFilter();
+    fl.type = 'lowpass'; fl.frequency.value = 900; g.gain.value = vol || .2;
+    src.buffer = buf; src.connect(fl).connect(g).connect(AC.destination); src.start();
+  } catch (e) {}
+}
+const SND = {
+  tap(){ beep(220, .05, 'square', .04); },
+  cash(){ beep(1320, .08, 'triangle', .1); beep(1760, .14, 'triangle', .1, .07); },
+  sign(){ beep(523, .15, 'triangle', .1); beep(659, .15, 'triangle', .1, .08); beep(784, .3, 'triangle', .1, .16); },
+  drill(){ beep(90, .25, 'sawtooth', .08, 0, 55); },
+  gush(){ noise(1.4, .35); beep(80, .9, 'sawtooth', .1, 0, 240); },
+  bad(){ beep(330, .35, 'sawtooth', .07, 0, 110); },
+  buy(){ beep(880, .07, 'square', .05); beep(1175, .1, 'square', .05, .06); },
+};
+function buzz(p){ try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} }
+
+/* ================= simulation ================= */
+function tick(dt, offline){
+  S.t += dt;
+  S.shock *= Math.pow(.996, dt);
+  const target = 72 + S.shock;
+  S.price += (target - S.price) * (1 - Math.pow(.99, dt)) + randn() * .42 * Math.sqrt(dt);
+  S.price = clamp(S.price, 18, 190);
+  const spd = (fxOn('pause') ? 0 : 1) * (fxOn('boost') ? S.fx.boost.m : 1);
+  const crew = lvl('crew');
+  for (const w of S.wells.slice()){
+    if (w.st === 'drill'){ w.prog += dt * spd; if (w.prog >= w.need) finishWell(w, offline); }
+    else if (w.st === 'prod'){
+      w.age += dt;
+      const q = wellRate(w) * (1 - w.roy) * dt; produce(q); w.cum += q;
+      if (!offline && rand() < dt * .0011 * Math.pow(.82, crew)){ w.st = 'down'; w.dt = 0; toast(`${lab(tractOf(w))} #${w.n} went down. Tap it on the Wells tab to fix.`, 'bad'); }
+    } else if (w.st === 'down'){
+      w.dt += dt; if (crew > 0 && w.dt >= 50 / (1 + .4 * crew)) w.st = 'prod';
+    }
+  }
+  if (lvl('pipe') && !fxOn('pipecut') && S.bbl > 0 && S.price >= S.autoFloor) sell(S.bbl, autoFrac(), true);
+  if (!offline){
+    if (S.t >= S.nextEvent && S.stats.wells > 0 && $('#modal-wrap').hidden && $('#sheet-wrap').hidden){ S.nextEvent = S.t + 75 + rand() * 90; fireEvent(); }
+    if (Math.floor(S.t) % 2 === 0 && Math.floor(S.t - dt) % 2 !== 0){ S.ph.push(S.price); if (S.ph.length > 90) S.ph.shift(); }
+  }
+}
+let shutIn = false;
+function produce(q){
+  const cap = tankCap(), room = cap - S.bbl;
+  if (q > room){ S.stats.lost += q - room; S.bbl = cap; shutIn = true; } else { S.bbl += q; shutIn = false; }
+}
+function sell(amount, frac, auto){
+  if (amount <= 0) return 0;
+  const p = salePrice(), rev = amount * p * frac * incomeMult();
+  S.bbl -= amount; S.cash += rev; S.stats.earned += rev; S.lifetime += rev; S.stats.sold += amount; S.stats.best = Math.max(S.stats.best, p);
+  return rev;
+}
+function finishWell(w, offline){
+  const t = tractOf(w), R = REG[w.r];
+  const dryP = .02 + .45 * Math.pow(1 - t.pot, 2.2);
+  if (!w.force && rand() < dryP){
+    w.st = 'dry'; S.stats.dry++;
+    if (!offline){ banner('DRY HOLE', `${lab(t)} #${w.n} came up dusty`, true); SND.bad(); }
+    return;
+  }
+  let qi = 2 * R.mult * (.25 + t.pot * 1.5) * (.8 + rand() * .4) * (1 + .12 * lvl('frac'));
+  if (w.k === 'h') qi *= 4.2 * (1 + .15 * Math.max(0, lvl('horiz') - 1));
+  let gush = false;
+  if (w.force || (t.pot > .6 && rand() < (t.pot - .5) * .6)){ qi *= 1.8; gush = true; S.stats.gushers++; }
+  Object.assign(w, { st:'prod', qi, age:0, cum:0, roy:t.roy, b:.9, D:(w.k === 'h' ? .006 : .0025) * Math.pow(.94, lvl('lift')), fl:Math.min(.6, .15 + .04 * lvl('lift')), gush });
+  S.stats.wells++; if (w.k === 'h') S.stats.horiz++;
+  if (!offline){
+    const net = qi * (1 - t.roy);
+    if (gush){ banner('GUSHER!', `${rateStr(net)} bbl/s on ${lab(t)}`); gusherFx(); SND.gush(); buzz([60, 40, 120]); }
+    else { toast(`${lab(t)} #${w.n} is online: ${rateStr(net)} bbl/s`, 'good'); SND.sign(); }
+  }
+}
+
+/* ================= actions ================= */
+let tab = 'map', sheet = null, negKey = null, curEv = null;
+const A = {
+  tab(d){ tab = d.v; SND.tap(); renderAll(true); $('#main').scrollTop = 0; },
+  sell(d, el){
+    if (S.bbl < .5) return;
+    const rev = sell(S.bbl, 1, false);
+    floaty('+' + money(rev), el); SND.cash(); buzz(15); hud();
+  },
+  region(d){ S.ri = +d.v; SND.tap(); renderAll(true); },
+  unlock(d){
+    const i = +d.v, R = REG[i]; if (S.cash < R.unlock) return;
+    S.cash -= R.unlock; S.unlocked.push(i); S.regions[i] = genRegion(i); S.ri = i;
+    SND.sign(); banner('NEW FIELD', `${R.name} · ${R.sub}`); news(`${S.company} opens field office in ${R.name}`);
+    renderAll(true);
+  },
+  tract(d){ openTract(+d.r, +d.i); SND.tap(); },
+  survey(d){
+    const t = S.regions[+d.r].tracts[+d.i], c = surveyCost(t.r); if (S.cash < c || t.surveyed) return;
+    S.cash -= c; t.surveyed = true; S.stats.surveys++;
+    const [b] = band(t.pot); toast(`Survey on ${lab(t)}: ${b} potential.`, t.pot >= .5 ? 'good' : ''); SND.buy();
+    renderSheet(true); renderAll(true);
+  },
+  talk(d){ openNeg(+d.r, +d.i); SND.tap(); },
+  roy(d){ const t = negTract(); t.neg.roy = +d.v; SND.tap(); renderNeg(); },
+  tactic(d){ doTactic(d.v); },
+  offer(){ makeOffer(); },
+  counter(){ const t = negTract(); if (!t.neg.counter) return; t.neg.bonus = t.neg.counter; renderNeg(); makeOffer(); },
+  drill(d){
+    const t = S.regions[+d.r].tracts[+d.i], k = d.k, c = drillCost(t.r, k);
+    if (S.cash < c || drillWells().length >= rigCap() || tractWells(t).length >= slots(t)) return;
+    if (k === 'h' && !lvl('horiz')) return;
+    S.cash -= c;
+    const n = Math.max(0, ...tractWells(t).map(w => w.n)) + 1;
+    S.wells.push({ id:S.nid++, r:t.r, i:t.i, n, k, st:'drill', prog:0, need:drillTime(k), qi:0, age:0, cum:0, roy:t.roy });
+    SND.drill(); buzz(20); toast(`Rig moving onto ${lab(t)}. Spud in.`); renderSheet(true); renderAll(true);
+  },
+  push(d, el){
+    const w = S.wells.find(x => x.id === +d.v); if (!w || w.st !== 'drill') return;
+    w.prog = Math.min(w.need, w.prog + .6 + .08 * lvl('rigs')); SND.tap(); buzz(8);
+    floaty('+ft', el, true);
+  },
+  fix(d){ const w = S.wells.find(x => x.id === +d.v); if (!w || w.st !== 'down') return; const c = fixCost(w); if (S.cash < c) return; S.cash -= c; w.st = 'prod'; SND.buy(); renderAll(true); renderSheet(true); },
+  refrac(d){ const w = S.wells.find(x => x.id === +d.v); if (!w) return; const c = refracCost(w); if (S.cash < c) return; S.cash -= c; w.age = 0; w.qi *= .85; toast(`Refrac done on ${lab(tractOf(w))} #${w.n}. She's flowing again.`, 'good'); SND.sign(); renderAll(true); renderSheet(true); },
+  pa(d){ const w = S.wells.find(x => x.id === +d.v); if (!w) return; const c = paCost(w); if (S.cash < c) return; S.cash -= c; S.wells = S.wells.filter(x => x !== w); toast('Plugged and abandoned. The slot is open again.'); SND.tap(); renderAll(true); renderSheet(true); },
+  buy(d, el){
+    const u = UPG.find(x => x.id === d.v), c = upCost(u); if (S.cash < c || lvl(u.id) >= u.max) return;
+    S.cash -= c; S.up[u.id] = lvl(u.id) + 1; S.stats.ups++; SND.buy(); buzz(12);
+    floaty(u.name.split(' ')[0] + ' ' + S.up[u.id], el, true); renderAll(true);
+  },
+  claim(d, el){
+    const g = GOALS.find(x => x.id === d.v); if (!g || S.goals[g.id] || !g.c()) return;
+    S.goals[g.id] = 1; S.cash += g.r; floaty('+' + money(g.r), el); SND.cash(); renderAll(true);
+  },
+  closeSheet(){ closeSheet(); },
+  autoSheet(){ openAuto(); SND.tap(); },
+  autoFloor(d){ S.autoFloor = clamp(S.autoFloor + (+d.v), 0, 150); renderSheet(true); },
+  ev(d){ evChoose(+d.v); },
+  modalOk(){ closeModal(); },
+  prestigeAsk(){ S.flags.pAsk = 1; renderAll(true); },
+  prestigeNo(){ S.flags.pAsk = 0; renderAll(true); },
+  prestigeYes(){ doPrestige(); },
+  resetAsk(){ S.flags.rAsk = 1; renderAll(true); },
+  resetNo(){ S.flags.rAsk = 0; renderAll(true); },
+  resetYes(){ const k = { company:S.company, sound:S.sound, welcomed:true }; S = newState(k); save(); closeSheet(); renderAll(true); toast('Fresh start. New county, same pickup.'); },
+  sound(){ S.sound = !S.sound; renderAll(true); if (S.sound) SND.buy(); },
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-a]'); if (!b || b.disabled) return;
+  const f = A[b.dataset.a]; if (f) f(b.dataset, b);
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'neg-bonus'){ const t = negTract(); if (!t) return; t.neg.bonus = sliderToBonus(t, +e.target.value); updateNegNumbers(); }
+  if (e.target.id === 'co-name'){ S.company = e.target.value.slice(0, 32) || 'Dust Devil Oil & Gas'; }
+});
+
+/* ================= negotiation ================= */
+function negTract(){ if (!negKey) return null; return S.regions[negKey[0]].tracts[negKey[1]]; }
+function ensureNeg(t){
+  const T = TYPES[t.owner.type];
+  if (!t.neg) t.neg = { pat:T.pat, mood:1, used:{}, roy:T.fixedRoy || .1875, bonus:0, counter:0, line:pick(T.greet), tone:'', read:null, seed:rand() };
+  if (!t.neg.bonus) t.neg.bonus = nice(fmv(t) * .8);
+  return t.neg;
+}
+function need(t){
+  const T = TYPES[t.owner.type];
+  return T.need * t.owner.rf * t.neg.mood * Math.pow(.96, lvl('silver')) * (1 - clamp(S.rep, -50, 50) * .003) * (1 - Math.min(.2, S.legacy * .01));
+}
+const offerVal = (t, bonus, roy) => bonus / fmv(t) + (roy - .125) * TYPES[t.owner.type].royW;
+const bonusFor = (t, roy) => Math.max(.2, need(t) - (roy - .125) * TYPES[t.owner.type].royW) * fmv(t);
+const sliderToBonus = (t, v) => nice(fmv(t) * (.2 + 2.8 * Math.pow(v / 1000, 1.3)));
+const bonusToSlider = (t, b) => Math.round(1000 * Math.pow(clamp((b / fmv(t) - .2) / 2.8, 0, 1), 1 / 1.3));
+function openNeg(r, i){
+  const t = S.regions[r].tracts[i]; if (t.st !== 'open' || t.cd > S.t) return;
+  negKey = [r, i]; ensureNeg(t); sheet = { kind:'neg' }; showSheet(); renderNeg();
+}
+function renderNeg(){
+  const t = negTract(); if (!t) return; const n = t.neg, T = TYPES[t.owner.type], o = t.owner;
+  const total = n.bonus * t.acres;
+  const err = Math.max(.05, .38 - .033 * lvl('silver'));
+  const g = bonusFor(t, n.roy), glo = nice(g * (1 - err * (.4 + n.seed))), ghi = nice(g * (1 + err * (1.4 - n.seed)));
+  const read = n.read == null ? '' : `<div class="row"><span class="k">Read</span><div class="bar grow ${n.read >= .85 ? 'sage' : n.read >= .6 ? 'brass' : ''}"><i style="width:${clamp(n.read, 0, 1) * 100}%"></i></div></div>`;
+  $('#sheet').innerHTML = `<div class="grab"></div><button class="x" data-a="closeSheet" aria-label="Close">×</button>
+  <div class="stack">
+    <div class="owner">${avatar(o)}<div><div class="on">${esc(o.first)} ${esc(o.last)}</div><div class="sub">${T.name} · ${lab(t)} · ${fmt(t.acres)} ac</div>
+      <div class="pat" aria-label="Patience">${Array.from({length:T.pat}, (_, k) => `<i class="${k < n.pat ? '' : 'off'}"></i>`).join('')}<span class="k" style="margin-left:6px">Patience</span></div></div></div>
+    <div class="bubble ${n.tone}">${esc(n.line)}</div>
+    ${read}
+    <div>
+      <div class="row" style="justify-content:space-between"><span class="k">Bonus per acre</span><b class="num" id="neg-bpa">${money(n.bonus)}/ac</b></div>
+      <input type="range" id="neg-bonus" min="0" max="1000" step="1" value="${bonusToSlider(t, n.bonus)}" aria-label="Bonus per acre">
+      <div class="gut">Your gut says ${money(glo)} to ${money(ghi)} an acre at ${ROY.find(x => x.v === n.roy).l} royalty.</div>
+    </div>
+    <div>
+      <div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="k">Royalty to owner</span><span class="sub" id="neg-nri">You keep ${((1 - n.roy) * 100).toFixed(2).replace(/\.?0+$/, '')}% of the oil</span></div>
+      <div class="seg">${ROY.map(x => `<button data-a="roy" data-v="${x.v}" class="${x.v === n.roy ? 'on' : ''}" ${T.fixedRoy && x.v !== T.fixedRoy ? 'disabled' : ''}>${x.l}</button>`).join('')}</div>
+    </div>
+    ${T.fixedRoy ? '' : `<div class="tactics">
+      <button class="btn alt col" data-a="tactic" data-v="talk" ${n.used.talk ? 'disabled' : ''}>Small talk<small>Free</small></button>
+      <button class="btn alt col" data-a="tactic" data-v="gift" ${n.used.gift ? 'disabled' : `data-cost="${giftCost(t)}"`}>Bring brisket<small>${money(giftCost(t))}</small></button>
+      <button class="btn alt col" data-a="tactic" data-v="hard" ${n.used.hard ? 'disabled' : ''}>Hardball<small>Risky</small></button>
+    </div>`}
+    <div class="offer-total"><span class="k">Signing bonus</span><b id="neg-total">${money(total)}</b></div>
+    <div class="btns ${n.counter ? '' : 'one'}">
+      ${n.counter ? `<button class="btn alt col" data-a="counter" data-cost="${n.counter * t.acres}">Take counter<small>${money(n.counter)}/ac · ${money(n.counter * t.acres)}</small></button>` : ''}
+      <button class="btn go col" id="neg-offer" data-a="offer" data-cost="${total}">${T.fixedRoy ? 'Submit sealed bid' : 'Make offer'}<small id="neg-offer-s">${S.cash < total ? 'Need ' + money(total) : money(total)}</small></button>
+    </div>
+  </div>`;
+  patchLive($('#sheet'));
+}
+function updateNegNumbers(){
+  const t = negTract(), n = t.neg, total = n.bonus * t.acres;
+  $('#neg-bpa').textContent = money(n.bonus) + '/ac';
+  $('#neg-total').textContent = money(total);
+  const b = $('#neg-offer'); b.dataset.cost = total; b.disabled = S.cash < total;
+  $('#neg-offer-s').textContent = S.cash < total ? 'Need ' + money(total) : money(total);
+}
+const giftCost = t => Math.round(1200 * REG[t.r].mult);
+function doTactic(k){
+  const t = negTract(), n = t.neg, T = TYPES[t.owner.type]; if (n.used[k]) return;
+  n.used[k] = 1;
+  if (k === 'talk'){
+    if (rand() < T.talk + .03 * lvl('silver')){ n.mood *= .9; n.line = pick(LINES.talkOk); n.tone = 'happy'; SND.sign(); }
+    else { n.line = pick(LINES.talkBad); n.tone = ''; SND.tap(); }
+  } else if (k === 'gift'){
+    const c = giftCost(t); if (S.cash < c){ n.used[k] = 0; return; } S.cash -= c;
+    if (rand() < .85){ n.mood *= T.gift; n.line = pick(LINES.giftOk); n.tone = 'happy'; SND.sign(); }
+    else { n.line = pick(LINES.giftBad); n.tone = ''; SND.tap(); }
+  } else if (k === 'hard'){
+    if (rand() < T.hard){ n.mood *= .82; n.line = pick(LINES.hardOk); n.tone = 'happy'; SND.buy(); }
+    else { n.mood *= 1.06; n.pat -= 1; n.line = pick(LINES.hardBad); n.tone = 'mad'; SND.bad(); $('#sheet').classList.add('shake'); setTimeout(() => $('#sheet') && $('#sheet').classList.remove('shake'), 500); }
+  }
+  n.counter = 0;
+  if (n.pat <= 0) return walkAway(t);
+  renderNeg();
+}
+function makeOffer(){
+  const t = negTract(), n = t.neg, T = TYPES[t.owner.type], total = n.bonus * t.acres;
+  if (S.cash < total) return;
+  const r = offerVal(t, n.bonus, n.roy) / need(t);
+  n.read = r;
+  if (r >= 1){
+    S.cash -= total; t.st = 'leased'; t.roy = n.roy; S.stats.leases++; S.rep += 1;
+    const o = t.owner; t.neg = null; negKey = null;
+    SND.sign(); buzz([20, 30, 20]);
+    banner('LEASE SIGNED', `${lab(t)} · ${fmt(t.acres)} ac · ${ROY.find(x => x.v === t.roy).l} royalty`);
+    toast(`"${pick(LINES.accept)}" — ${o.first} ${o.last}`, 'good');
+    openTract(t.r, t.i); renderAll(true);
+    return;
+  }
+  if (T.fixedRoy){ n.pat = 0; return walkAway(t, 'Bid rejected. A major outbid you. Next sale opens in 2:30.'); }
+  if (r >= .85){
+    n.pat -= 1; n.counter = nice(bonusFor(t, n.roy) * (1 + rand() * .04)); n.line = pick(LINES.counter)(money(n.counter)); n.tone = '';
+  } else if (r >= .6){
+    n.pat -= 1; n.mood *= 1.02; n.counter = 0; n.line = pick(LINES.low); n.tone = 'mad';
+  } else {
+    n.pat -= 2; n.mood *= 1.05; n.counter = 0; n.line = pick(LINES.insult); n.tone = 'mad'; SND.bad();
+  }
+  if (n.pat <= 0) return walkAway(t);
+  SND.tap(); renderNeg();
+}
+function walkAway(t, msg){
+  t.cd = S.t + 150; t.neg = null; negKey = null;
+  SND.bad(); buzz(80);
+  toast(msg || `"${pick(LINES.walk)}" They won't take your calls for a while.`, 'bad');
+  openTract(t.r, t.i); renderAll(true);
+}
+
+/* ================= events ================= */
+const randOf = a => a.length ? pick(a) : null;
+const prodTracts = () => [...new Set(prodWells().map(tractOf))];
+const EVENTS = [
+  { w:3, ok:() => prodTracts().length, make(){
+    const t = pick(prodTracts()), o = t.owner, c = evMoney(25, 3000);
+    return { title:'Dead Bull on the Lease Road', text:`One of your water haulers clipped ${o.first} ${o.last}'s prize Angus bull out on ${lab(t)}. ${o.first} is waiting at the cattle guard with a shotgun and a lawyer's business card.`,
+      ch:[ { t:'Pay for the bull', s:money(c), cost:c, f(){ pay(c); S.rep += 4; return 'You cut a check and throw in a bottle of good whiskey. Word gets around that you do right by folks.'; } },
+           { t:'Tell them to call their lawyer', s:'Reputation hit', f(){ S.rep -= 8; return 'They do. It is a very long phone call, and now the whole county thinks you run over cattle for sport.'; } } ] };
+  } },
+  { w:3, ok:() => drillWells().length, make(){
+    const w = pick(drillWells()), t = tractOf(w);
+    return { title:'The Well Is Kicking', text:`Gas is coming up the hole on ${lab(t)}. The driller is yelling about mud weight and the tool pusher is staring right at you.`,
+      ch:[ { t:'Shut it in and circulate', s:'Slower, safe', f(){ w.need += 12; return 'You weight up the mud and get her under control. Slow, safe, boring. Nobody gets hurt.'; } },
+           { t:'Keep drilling. Let her rip.', s:'Gusher or blowout', f(){
+             const r = rand();
+             if (!S.wells.includes(w)) return 'Too late. The rig already finished up.';
+             if (r < .4){ w.force = true; w.prog = w.need; return 'That pressure means a big reservoir down there. Finish her off and hang on to your hat.'; }
+             if (r < .65){ const c = evMoney(60, 8000, true); S.wells = S.wells.filter(x => x !== w); pay(c); S.rep -= 6; S.stats.blowouts++; SND.bad(); buzz([100, 50, 200]);
+               return `BLOWOUT. The well is lost, the rig is scorched, and the Railroad Commission fined you ${money(c)}. Everybody walked away, at least.`; }
+             return 'She settles down on her own. You got lucky this time.'; } } ] };
+  } },
+  { w:2, ok:() => true, make(){ return { title:'OPEC Cuts Output', text:'The cartel overseas just announced a big production cut. Traders are losing their minds and crude is ripping higher.', ch:[{ t:'Hold your oil and watch it climb', f(){ S.shock += 28; news('WTI surges on surprise OPEC cut'); return 'Prices are heading up. Fill those tanks and pick your moment to sell.'; } }] }; } },
+  { w:2, ok:() => true, make(){ return { title:'Price War Overseas', text:'Two big producers are flooding the market out of spite. Crude is falling off a cliff.', ch:[{ t:'Grit your teeth', f(){ S.shock -= 30; news('Crude plunges as overseas price war erupts'); return 'Prices are dropping. Hold oil in the tanks if you can and wait it out.'; } }] }; } },
+  { w:1, ok:() => true, make(){ return { title:'Hurricane in the Gulf', text:'A Category 4 is barreling toward the refineries on the coast. Prices are spiking on supply fears.', ch:[{ t:'Batten down', f(){ S.shock += 18; let lost = 0; if (S.regions[4]) for (const w of S.wells) if (w.r === 4 && w.st === 'prod'){ w.st = 'down'; w.dt = 0; lost++; } news('Gulf refineries brace for storm'); return lost ? `Prices are up, but ${lost} of your offshore wells were shut in for the storm.` : 'Prices are up, and your wells are safe on dry land.'; } }] }; } },
+  { w:2, ok:() => netRate() > 0 && !fxOn('hedge'), make(){
+    const p = S.price * 1.1;
+    return { title:'A Banker in Boots', text:`A banker from Fort Worth in brand-new ostrich boots wants to lock in your oil at $${p.toFixed(2)} a barrel for the next four minutes, whatever the market does.`,
+      ch:[ { t:'Shake on it', s:`Lock $${p.toFixed(2)}/bbl`, f(){ S.fx.hedge = { p, until:S.t + 240 }; return 'Hedge is on. Every barrel you sell for the next four minutes goes at the locked price.'; } },
+           { t:'Ride the market', s:'No deal', f(){ return 'He tips his hat and heads back to his rental car.'; } } ] };
+  } },
+  { w:2, ok:() => drillWells().length, make(){
+    const c = evMoney(35, 1500);
+    return { title:'The Crew Wants a Bonus', text:'Your drilling hands heard the outfit next door pays better. They want a bonus or they slow down.',
+      ch:[ { t:'Pay the bonus', s:money(c), cost:c, f(){ pay(c); S.fx.boost = { m:1.6, until:S.t + 120 }; S.rep += 2; return 'The crew is fired up. Drilling runs 60% faster for two minutes.'; } },
+           { t:'Tell them to take it or leave it', s:'Rigs stall', f(){ S.fx.pause = { until:S.t + 25 }; return 'They take a very long lunch. Rigs are idle for 25 seconds.'; } } ] };
+  } },
+  { w:2, ok:() => prodTracts().length, make(){
+    const t = pick(prodTracts()), c = evMoney(20, 2500, true);
+    return { title:'Railroad Commission Inspector', text:`An inspector found a leaky thief hatch on your tank battery at ${lab(t)}. Yes, the Railroad Commission regulates oil. No, nobody knows why either.`,
+      ch:[ { t:'Fix it right', s:money(c), cost:c, f(){ pay(c); S.rep += 1; return 'Fixed and signed off. The inspector even says thanks.'; } },
+           { t:'Sweet-talk the inspector', s:'50/50', f(){ if (rand() < .5 + .03 * lvl('silver')) { S.rep += 1; return 'Turns out you both went to Odessa Permian. The inspector lets it slide.'; } pay(c * 2); return `That did not work. Fine doubled: ${money(c * 2)}.`; } } ] };
+  } },
+  { w:1, ok:() => !S.flags.bribe, make(){
+    const c = evMoney(45, 4000);
+    return { title:'A Man With a Proposition', text:'A guy in a too-clean pickup says he can make your permit problems disappear. Cash, no questions, no receipts.',
+      ch:[ { t:'Pay him', s:money(c), cost:c, f(){ pay(c); S.fx.boost = { m:1.8, until:S.t + 180 }; S.flags.bribe = 1; return 'Permits fly through. Drilling runs 80% faster for three minutes. You try not to think about it.'; } },
+           { t:'Walk away', s:'Reputation up', f(){ S.rep += 4; return 'You tell him to get lost. Folks in town respect that.'; } } ] };
+  } },
+  { w:1, ok:() => S.flags.bribe, make(){
+    const c = evMoney(140, 15000, true);
+    return { title:'The Feds Are Asking Questions', text:'Remember the man in the too-clean pickup? He got arrested, and he kept a notebook. Your name is in it.',
+      ch:[ { t:'Lawyer up and pay the penalty', s:money(c), f(){ pay(c); S.rep -= 10; S.flags.bribe = 0; return `It costs ${money(c)} and your good name around town. Lesson learned.`; } } ] };
+  } },
+  { w:2, ok:() => prodTracts().length, make(){
+    const t = pick(prodTracts()), c = evMoney(60, 6000, true), win = .35 + .1 * lvl('lawyers');
+    return { title:'Royalty Owners Sue', text:`The ${t.owner.last} family says you're shorting their royalty checks on ${lab(t)} with bogus post-production deductions.`,
+      ch:[ { t:'Settle quietly', s:money(c), cost:c, f(){ pay(c); S.rep += 3; return 'Settled. The family buys a new boat and tells everyone you were fair.'; } },
+           { t:'Fight it in court', s:`${Math.round(win * 100)}% to win`, f(){ if (rand() < win) return 'Your lawyers bury them in paperwork. Case dismissed.'; pay(c * 2.5); S.rep -= 5; return `You lose. The judge awards them ${money(c * 2.5)} and gives you a look.`; } } ] };
+  } },
+  { w:2, ok:() => drillWells().length, make(){
+    const w = pick(drillWells()), c = evMoney(25, 2000, true);
+    return { title:'Haboob Rolling In', text:'A wall of dust a thousand feet tall is coming across the flats. You can barely see the derrick.',
+      ch:[ { t:'Shut down the rigs', s:'Pause 20s', f(){ S.fx.pause = { until:S.t + 20 }; return 'Everybody hunkers down in the doghouse. The rigs sit idle for 20 seconds.'; } },
+           { t:'Keep working', s:'Accident risk', f(){ if (rand() < .4){ pay(c); if (S.wells.includes(w)) w.need += 18; S.rep -= 2; return `A hand got hurt and a joint of pipe got dropped. ${money(c)} in costs, and the well is set back.`; } return 'You push through. Sand in every crack, but the bit keeps turning.'; } } ] };
+  } },
+  { w:2, ok:() => S.regions.some(R => R && R.tracts.some(t => !t.surveyed && t.st === 'open')), make(){
+    const all = S.regions.flatMap(R => R ? R.tracts.filter(t => !t.surveyed && t.st === 'open') : []), t = pick(all);
+    return { title:'Hot Tip at the Diner', text:`A pumper at the café leans over his chicken fried steak and says ${lab(t)} in ${REG[t.r].name} is sitting on something.`,
+      ch:[ { t:'Buy him a slice of pie', s:'Free survey', f(){ t.surveyed = true; return `He draws you a map on a napkin. ${lab(t)} reads ${band(t.pot)[0]}.`; } } ] };
+  } },
+  { w:1, ok:() => dollarRate() > 0 && !fxOn('pe'), make(){
+    const c = Math.max(20000 * maxMult(), dollarRate() * 240);
+    return { title:'Dallas Money on the Phone', text:'A private equity guy wants a piece of your outfit. He will wire cash today in exchange for 12% of your income for five minutes.',
+      ch:[ { t:'Take the money', s:'+' + money(c), f(){ S.cash += c; S.fx.pe = { until:S.t + 300 }; return `${money(c)} hits the account. He calls you "partner" now, which feels bad.`; } },
+           { t:'Hang up', s:'Stay independent', f(){ return 'You hang up mid-sentence. Feels great.'; } } ] };
+  } },
+  { w:2, ok:() => prodWells().some(w => w.st === 'prod'), make(){
+    const w = pick(prodWells().filter(x => x.st === 'prod')), t = tractOf(w), c = evMoney(90, 10000, true);
+    return { title:'H2S Alarm', text:`The sour gas monitor is screaming at ${lab(t)} #${w.n}. Hydrogen sulfide can drop a grown man in two breaths.`,
+      ch:[ { t:'Evacuate and fix it', s:'Well goes down', f(){ w.st = 'down'; w.dt = 0; S.rep += 2; return 'Everybody clears out upwind. The well is down until someone repairs it.'; } },
+           { t:'Probably a bad sensor', s:'Risky', f(){ if (rand() < .3){ pay(c); S.rep -= 10; return `It was not a bad sensor. A pumper ended up in the hospital. ${money(c)} in fines and the whole county is talking.`; } return 'It was a bad sensor. You replace it and move on.'; } } ] };
+  } },
+  { w:1, ok:() => true, make(){
+    const c = evMoney(15, 800);
+    return { title:'County Fair Brisket Cook-off', text:'The county fair needs a sponsor for the brisket cook-off. Your logo would go on the smoker trailer.',
+      ch:[ { t:'Sponsor it', s:money(c), cost:c, f(){ pay(c); S.rep += 6; return 'Your banner hangs over the best brisket in three counties. Owners will remember.'; } },
+           { t:'Pass', f(){ return 'A competitor sponsors it instead. Their logo looks smug.'; } } ] };
+  } },
+  { w:2, ok:() => S.bbl > tankCap() * .25, make(){
+    const c = evMoney(20, 1500);
+    return { title:'Oil Thieves', text:'Somebody has been backing a truck up to your tanks at night and helping themselves.',
+      ch:[ { t:'Hire night security', s:money(c), cost:c, f(){ pay(c); return 'The guard catches them in the act. Your oil stays put.'; } },
+           { t:'Let it go', s:'Lose half your stored oil', f(){ S.bbl *= .5; return 'Half your stored oil is gone by morning.'; } } ] };
+  } },
+  { w:1, ok:() => lvl('pipe') > 0, make(){ return { title:'Backhoe Hits the Pipeline', text:'A county road crew dug right through your gathering line. No pipeline sales for 90 seconds.', ch:[{ t:'Sell by hand meanwhile', f(){ S.fx.pipecut = { until:S.t + 90 }; return 'Auto-sell is offline for 90 seconds. Use the Sell button.'; } }] }; } },
+  { w:1, ok:() => true, make(){ return { title:'Frac Sand Shortage', text:'Every sand mine from here to Kermit is sold out. Drilling costs are up 30% for three minutes.', ch:[{ t:'Ugh. Fine.', f(){ S.fx.sand = { until:S.t + 180 }; return 'Drilling costs 30% more for three minutes.'; } }] }; } },
+];
+function fireEvent(){
+  const ok = EVENTS.filter(e => e.ok()); if (!ok.length) return;
+  let tot = ok.reduce((a, e) => a + e.w, 0), r = rand() * tot, e = ok[0];
+  for (const x of ok){ r -= x.w; if (r <= 0){ e = x; break; } }
+  curEv = e.make(); SND.bad(); buzz(30);
+  showModal(`<div class="eyebrow">Out in the field</div><h2>${curEv.title}</h2><p>${esc(curEv.text)}</p>
+    <div class="stack">${curEv.ch.map((c, k) => `<button class="btn ${k === 0 ? 'go' : 'alt'} choice" data-a="ev" data-v="${k}" ${c.cost && S.cash < c.cost ? 'disabled' : ''}>${c.t}${c.s ? `<small>${c.s}${c.cost && S.cash < c.cost ? ' · not enough cash' : ''}</small>` : ''}</button>`).join('')}</div>`);
+}
+function evChoose(k){
+  if (!curEv) return; const c = curEv.ch[k]; if (c.cost && S.cash < c.cost) return;
+  const res = c.f(); curEv = null;
+  showModal(`<div class="eyebrow">What happened</div><p>${esc(res)}</p><button class="btn block" data-a="modalOk">Back to work</button>`);
+  renderAll(true);
+}
+
+/* ================= prestige ================= */
+const prestigeGain = () => Math.floor(Math.sqrt(S.stats.earned / 1e6));
+function doPrestige(){
+  if (S.stats.earned < PRESTIGE_AT) return;
+  const g = prestigeGain();
+  const k = { legacy:S.legacy + g, prestiges:S.prestiges + 1, lifetime:S.lifetime, company:S.company, sound:S.sound, welcomed:true };
+  S = newState(k); save(); closeSheet(); tab = 'map'; renderAll(true);
+  banner('SOLD!', `+${g} Legacy · income now ×${(1 + .08 * S.legacy).toFixed(2)}`); SND.gush(); gusherFx();
+}
+
+/* ================= rendering ================= */
+const ICON = {
+  pj:(cls) => `<svg class="pj ${cls || ''}" viewBox="0 0 40 32" aria-hidden="true"><path d="M7 30 L14 12 L21 30" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="7" cy="23" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/><g class="beam"><rect x="3" y="10" width="28" height="3.2" rx="1" fill="currentColor"/><path d="M30 7.5 q6 4 0 8.5 z" fill="currentColor"/><path d="M34 16 V29" stroke="currentColor" stroke-width="1.3"/></g><path d="M1 30.5H39" stroke="currentColor" stroke-width="2"/></svg>`,
+  rig:() => `<svg class="rig" viewBox="0 0 40 32" aria-hidden="true"><path d="M14 30 L18 3 H22 L26 30 M15.3 22 H24.7 M16.6 13 H23.4 M14 30 L23.4 13 M26 30 L16.6 13" fill="none" stroke="currentColor" stroke-width="1.8"/><rect class="bit" x="19" y="4" width="2" height="9" fill="var(--flare)"/><path d="M6 30.5H34" stroke="currentColor" stroke-width="2"/></svg>`,
+  flag:() => `<svg viewBox="0 0 40 32" aria-hidden="true"><path d="M15 30V5" stroke="currentColor" stroke-width="2.2"/><path d="M16 5h14l-3.5 4.5L30 14H16z" fill="var(--flare)"/><path d="M9 30.5H24" stroke="currentColor" stroke-width="2"/></svg>`,
+  dry:() => `<svg viewBox="0 0 40 32" aria-hidden="true"><rect x="16" y="14" width="8" height="16" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 14h12M12 8 L28 24 M28 8 L12 24" stroke="currentColor" stroke-width="2.2"/></svg>`,
+  map:() => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>`,
+  wells:() => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21l5-12 5 12M2 21h20"/><path d="M2 8l17-3 2 5" /><path d="M20 10v11"/></svg>`,
+  wrench:() => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.5-.5-2.4z"/></svg>`,
+  goal:() => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 21V4M5 4h12l-2.5 4L17 12H5"/></svg>`,
+  co:() => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="1"/><path d="M9 7V4h6v3M3 12h18"/></svg>`,
+};
+function avatar(o){
+  const v = o.av, gov = o.type === 'boem';
+  const sk = ['#e9c3a0','#c99a73','#a5714b','#7a4f33','#f0d2b6'][v % 5];
+  const hatC = ['#6b4a2b','#2a2420','#e8dfcc','#8a6a3f'][(v >> 3) % 4];
+  const hair = ['#3b2a1e','#9b9488','#d9d2c4','#6b4423'][(v >> 5) % 4];
+  const shirt = gov ? '#3d4a5c' : ['#7a3b2a','#3f5e7a','#5d6b3a','#8a7356'][(v >> 7) % 4];
+  const hat = !(o.type === 'lawyer' || gov) && (v >> 9) % 5 !== 0;
+  const stache = !gov && (v >> 11) % 3 === 0, glasses = o.type === 'lawyer' || gov || (v >> 12) % 4 === 0;
+  return `<svg class="av" viewBox="0 0 56 56" width="56" height="56" aria-hidden="true"><rect width="56" height="56" rx="10" fill="#cdbd99"/>
+    <path d="M8 56 q20 -20 40 0" fill="${shirt}"/><ellipse cx="28" cy="31" rx="11" ry="13" fill="${sk}"/>
+    ${hat ? `<path d="M17.5 21 q0 -12 10.5 -12 q10.5 0 10.5 12z" fill="${hatC}"/><path d="M24 11 q4 3 8 0" stroke="rgba(0,0,0,.25)" stroke-width="1.2" fill="none"/><ellipse cx="28" cy="21.5" rx="19" ry="3.6" fill="${hatC}"/>` : `<path d="M17 29 q0 -15 11 -15 q11 0 11 15 q-3 -8 -11 -8 q-8 0 -11 8z" fill="${hair}"/>`}
+    <circle cx="24" cy="30" r="1.4" fill="#2a2018"/><circle cx="32" cy="30" r="1.4" fill="#2a2018"/>
+    ${stache ? `<path d="M22 37.5 q6 -3.5 12 0 q-6 2 -12 0z" fill="${hair}"/>` : `<path d="M24.5 38 q3.5 1.8 7 0" stroke="#2a2018" stroke-width="1.3" fill="none"/>`}
+    ${glasses ? `<g fill="none" stroke="#2a2018" stroke-width="1.2"><circle cx="24" cy="30" r="3.4"/><circle cx="32" cy="30" r="3.4"/><path d="M27.4 30h1.2"/></g>` : ''}</svg>`;
+}
+const LIVE = {
+  tp(r, i){ const ws = tractWells(S.regions[r].tracts[i]).filter(w => w.st === 'drill'); return ws.length ? Math.max(...ws.map(w => w.prog / w.need)) : 0; },
+  cd(r, i){ return clock(S.regions[r].tracts[i].cd - S.t); },
+  wp(id){ const w = S.wells.find(x => x.id === +id); return w ? w.prog / w.need : 0; },
+  wpt(id){ const w = S.wells.find(x => x.id === +id); return w ? `${Math.floor(w.prog / w.need * 100)}% · ${clock((w.need - w.prog) / Math.max(.01, fxOn('pause') ? .01 : fxOn('boost') ? S.fx.boost.m : 1))} left` : ''; },
+  wr(id){ const w = S.wells.find(x => x.id === +id); return w ? `${rateStr(wellRate(w) * (1 - w.roy))} bbl/s · ${Math.round(wellRate(w) / w.qi * 100)}% of peak · ${short(w.cum)} bbl total` : ''; },
+  wh(id){ const w = S.wells.find(x => x.id === +id); return w ? wellRate(w) / w.qi : 0; },
+  sumb(){ return rateStr(netRate()); }, sumd(){ return moneyRate(dollarRate()) + '/s'; }, sumr(){ return `${drillWells().length}/${rigCap()}`; },
+  gp(id){ return null; },
+  fxl(){ return fxLine(); },
+  pnow(){ return `$${S.price.toFixed(2)}`; },
+  earned(){ return money(S.stats.earned); },
+};
+function patchLive(root){
+  root = root || document;
+  root.querySelectorAll('[data-live]').forEach(el => { const [k, ...a] = el.dataset.live.split(':'); const v = LIVE[k] && LIVE[k](...a); if (v != null && el.textContent !== v) el.textContent = v; });
+  root.querySelectorAll('[data-livew]').forEach(el => { const [k, ...a] = el.dataset.livew.split(':'); const v = LIVE[k] && LIVE[k](...a); if (v != null) el.style.width = (clamp(v, 0, 1) * 100).toFixed(1) + '%'; });
+  root.querySelectorAll('[data-cost]').forEach(b => { b.disabled = S.cash < +b.dataset.cost; });
+}
+function fxLine(){
+  const a = [];
+  if (fxOn('hedge')) a.push(`Hedge $${S.fx.hedge.p.toFixed(0)} ${clock(S.fx.hedge.until - S.t)}`);
+  if (fxOn('boost')) a.push(`Rigs ×${S.fx.boost.m} ${clock(S.fx.boost.until - S.t)}`);
+  if (fxOn('pause')) a.push(`Rigs idle ${clock(S.fx.pause.until - S.t)}`);
+  if (fxOn('sand')) a.push(`Sand +30% ${clock(S.fx.sand.until - S.t)}`);
+  if (fxOn('pe')) a.push(`PE cut ${clock(S.fx.pe.until - S.t)}`);
+  if (fxOn('pipecut')) a.push(`Pipeline cut ${clock(S.fx.pipecut.until - S.t)}`);
+  return a.join(' · ');
+}
+
+const TABS = [['map','Lease','map'],['wells','Wells','wells'],['up','Upgrades','wrench'],['goals','Goals','goal'],['co','Company','co']];
+let lastSig = {};
+function renderTabs(){
+  const ready = GOALS.filter(g => !S.goals[g.id] && g.c()).length;
+  const down = S.wells.filter(w => w.st === 'down').length;
+  const sig = tab + ready + ':' + down;
+  if (lastSig.tabs === sig) return; lastSig.tabs = sig;
+  $('#tabs').innerHTML = TABS.map(([id, l, ic]) => `<button data-a="tab" data-v="${id}" class="${tab === id ? 'on' : ''}" aria-label="${l}">${ICON[ic]()}${l}${id === 'goals' && ready ? `<span class="dot">${ready}</span>` : ''}${id === 'wells' && down ? `<span class="dot">${down}</span>` : ''}</button>`).join('');
+}
+function coach(){
+  if (S.stats.leases === 0) return 'Tap any section on the plat map, then talk to the owner and sign your first lease.';
+  if (!S.wells.length) return 'Tap your leased section (the orange flag) and drill a well.';
+  if (drillWells().length && S.stats.wells === 0) return 'Drilling. Open the Wells tab and mash Push to make hole faster.';
+  if (S.bbl > tankCap() * .6 && !lvl('pipe')) return 'Your tanks are filling up. Hit SELL before oil starts spilling over.';
+  if (S.stats.wells > 0 && S.stats.ups === 0) return 'Check Upgrades. A Tank Farm lets you hold oil until the price is right.';
+  if (GOALS.some(g => !S.goals[g.id] && g.c())) return 'You have a goal reward waiting on the Goals tab.';
+  return null;
+}
+function mapSig(){
+  const R = S.regions[S.ri];
+  return 'm' + S.ri + S.unlocked.join() + R.tracts.map(t => tractView(t) + (t.surveyed ? 1 : 0) + hot(t)).join('') + (coach() || '');
+}
+function renderMap(){
+  const R = REG[S.ri], reg = S.regions[S.ri], c = coach();
+  const chips = REG.map((x, i) => S.unlocked.includes(i) ? `<button class="chip ${i === S.ri ? 'on' : ''}" data-a="region" data-v="${i}">${x.name}</button>`
+    : (i === S.unlocked.length ? `<button class="chip lock" data-a="unlock" data-v="${i}" data-cost="${x.unlock}">Open ${x.name} · ${moneyS(x.unlock)}</button>` : `<span class="chip lock" style="opacity:.45">${x.name}</span>`)).join('');
+  const tiles = reg.tracts.map(t => {
+    const v = tractView(t); let icon, cls = '';
+    if (v === 'prod') icon = ICON.pj(); else if (v === 'down'){ icon = ICON.pj('stop'); cls = 'down'; }
+    else if (v === 'drill') icon = ICON.rig(); else if (v === 'leased') icon = ICON.flag();
+    else if (v === 'dry'){ icon = ICON.dry(); cls = 'dry'; } else if (v === 'cd'){ icon = `<span class="q" data-live="cd:${t.r}:${t.i}" style="font-size:12px;opacity:.8">${clock(t.cd - S.t)}</span>`; cls = 'cd'; }
+    else icon = `<span class="q">${t.surveyed ? '' : '?'}</span>`;
+    const p = t.surveyed && v !== 'dry' && v !== 'cd' ? Math.round(t.pot * 62) : 0;
+    if (p > 34) cls += ' dark';
+    if (t.st === 'leased') cls += ' leased';
+    return `<button class="tile ${cls}" style="--p:${p}%" data-a="tract" data-r="${t.r}" data-i="${t.i}" aria-label="${lab(t)}, ${t.acres} acres">
+      ${t.surveyed && v === 'open' ? `<span class="band">${band(t.pot)[0].slice(0, 4).toUpperCase()}</span>` : ''}
+      ${hot(t) && t.st === 'open' ? '<span class="hot"></span>' : ''}
+      <span class="tl">${lab(t)}</span>${icon}<span class="ta">${fmt(t.acres)} ac</span>
+      ${v === 'drill' ? `<span class="tbar"><i data-livew="tp:${t.r}:${t.i}"></i></span>` : ''}</button>`;
+  }).join('');
+  $('#main').innerHTML = `<div class="stack">
+    ${c ? `<div class="coach"><b>TIP</b><span>${c}</span></div>` : ''}
+    <div class="regions">${chips}</div>
+    <div class="platwrap">
+      <div class="plat-h"><span>${R.name} · ${R.sub}</span><span>${R.blk}</span></div>
+      <div class="plat">${tiles}</div>
+    </div>
+    <div class="legend"><span><i style="background:var(--paper)"></i>Open</span><span><i style="background:var(--paper);outline:2px solid var(--flare);outline-offset:-4px"></i>Your lease</span><span><i style="background:#5b4d3a"></i>Surveyed rich</span><span><i style="background:var(--flare);border-radius:50%"></i>Near producing wells</span></div>
+  </div>`;
+}
+function wellsSig(){ return 'w' + S.wells.map(w => w.id + w.st + (w.st === 'prod' && wellRate(w) / w.qi < .55 ? 'r' : '')).join(',') + rigCap(); }
+function wellRow(w){
+  const t = tractOf(w), name = `${lab(t)} #${w.n} <span class="pill ${w.k === 'h' ? 'dark' : ''}">${w.k === 'h' ? 'Horiz' : 'Vert'}</span>${w.gush ? ' <span class="pill warn">Gusher</span>' : ''}`;
+  const where = REG[w.r].name;
+  if (w.st === 'drill') return `<div class="card well">${ICON.rig()}<div style="min-width:0"><div class="wn">${name}</div><div class="wm" data-live="wpt:${w.id}"></div><div class="bar" style="margin-top:6px"><i data-livew="wp:${w.id}"></i></div></div><button class="btn go" data-a="push" data-v="${w.id}">Push</button></div>`;
+  if (w.st === 'prod'){ const low = wellRate(w) / w.qi < .55; return `<div class="card well">${ICON.pj()}<div style="min-width:0"><div class="wn">${name}</div><div class="wm" data-live="wr:${w.id}"></div><div class="bar sage" style="margin-top:6px"><i data-livew="wh:${w.id}"></i></div></div>${low ? `<button class="btn alt sm col" data-a="refrac" data-v="${w.id}" data-cost="${refracCost(w)}">Refrac<small>${moneyS(refracCost(w))}</small></button>` : `<span class="sub">${where.split(' ')[0]}</span>`}</div>`; }
+  if (w.st === 'down') return `<div class="card well down">${ICON.pj('stop')}<div style="min-width:0"><div class="wn">${name}</div><div class="wm">Down. ${lvl('crew') ? 'Field crew is on the way.' : 'Needs a repair crew.'}</div></div><button class="btn go sm col" data-a="fix" data-v="${w.id}" data-cost="${fixCost(w)}">Fix<small>${moneyS(fixCost(w))}</small></button></div>`;
+  return `<div class="card well">${ICON.dry()}<div style="min-width:0"><div class="wn">${name}</div><div class="wm">Dry hole. Plug it to free the slot.</div></div><button class="btn alt sm col" data-a="pa" data-v="${w.id}" data-cost="${paCost(w)}">Plug<small>${moneyS(paCost(w))}</small></button></div>`;
+}
+function renderWells(){
+  const order = { down:0, drill:1, prod:2, dry:3 };
+  const ws = S.wells.slice().sort((a, b) => order[a.st] - order[b.st] || b.id - a.id);
+  $('#main').innerHTML = `<div class="stack">
+    <div class="card"><div class="sum">
+      <div><span class="k">Net oil</span><b data-live="sumb"></b><span class="sub">bbl/s</span></div>
+      <div><span class="k">At spot</span><b data-live="sumd"></b><span class="sub">before tanks</span></div>
+      <div><span class="k">Rigs busy</span><b data-live="sumr"></b><span class="sub">at once</span></div>
+    </div><div class="sub" style="margin-top:8px;color:var(--rust)" data-live="fxl"></div></div>
+    ${ws.length ? ws.map(wellRow).join('') : `<div class="empty">${ICON.pj('stop')}<p>No wells yet. Sign a lease on the map, then drill.</p></div>`}
+    ${ws.some(w => w.st === 'prod') ? `<p class="sub">Wells decline over time, like real shale. Refrac a tired well to bring it back, and buy Artificial Lift to raise the floor.</p>` : ''}
+  </div>`;
+}
+function upSig(){ return 'u' + UPG.map(u => lvl(u.id)).join(','); }
+function renderUp(){
+  $('#main').innerHTML = `<div class="stack"><h2>Equipment &amp; people</h2>
+  ${UPG.map(u => { const l = lvl(u.id), maxed = l >= u.max, c = upCost(u);
+    return `<div class="card up-c"><div style="min-width:0"><div class="un">${u.name} <span class="sub">Lv ${l}/${u.max}</span></div><div class="sub" style="font-weight:500">${u.d}</div>
+      <div class="lv">${Array.from({length:u.max}, (_, k) => `<i class="${k < l ? 'on' : ''}"></i>`).join('')}</div></div>
+      ${maxed ? '<span class="pill good">Maxed</span>' : `<button class="btn go col" data-a="buy" data-v="${u.id}" data-cost="${c}">Buy<small>${moneyS(c)}</small></button>`}</div>`; }).join('')}
+  </div>`;
+}
+function goalSig(){ return 'g' + GOALS.map(g => S.goals[g.id] ? 2 : g.c() ? 1 : 0).join(''); }
+function renderGoals(){
+  const list = GOALS.slice().sort((a, b) => (S.goals[a.id] ? 2 : a.c() ? 0 : 1) - (S.goals[b.id] ? 2 : b.c() ? 0 : 1));
+  const done = GOALS.filter(g => S.goals[g.id]).length;
+  $('#main').innerHTML = `<div class="stack"><div class="row" style="justify-content:space-between"><h2>Goals</h2><span class="sub">${done} of ${GOALS.length} claimed</span></div>
+  ${list.map(g => { const ok = g.c(), cl = S.goals[g.id];
+    return `<div class="card goal up-c ${cl ? 'claimed' : ok ? 'done' : ''}"><div style="min-width:0"><div class="un">${g.n}</div><div class="sub" style="font-weight:500">${g.d}</div></div>
+    ${cl ? '<span class="pill">Claimed</span>' : ok ? `<button class="btn go col" data-a="claim" data-v="${g.id}">Claim<small>${moneyS(g.r)}</small></button>` : `<span class="pill">${moneyS(g.r)}</span>`}</div>`; }).join('')}
+  </div>`;
+}
+function coSig(){ return 'c' + S.legacy + S.flags.pAsk + S.flags.rAsk + S.sound + (S.stats.earned >= PRESTIGE_AT) + Math.floor(S.t / 4); }
+function renderCo(){
+  const { r, nx } = rankOf(S.lifetime), canP = S.stats.earned >= PRESTIGE_AT, g = prestigeGain();
+  const prog = nx ? clamp((S.lifetime - r[0]) / (nx[0] - r[0]), 0, 1) : 1;
+  $('#main').innerHTML = `<div class="stack">
+    <div class="card stack" style="gap:8px"><label class="k" for="co-name">Company name</label><input class="name-in" id="co-name" value="${esc(S.company)}" maxlength="32" autocomplete="off">
+      <div class="row" style="justify-content:space-between"><b>${r[1]}</b><span class="sub">${nx ? 'Next: ' + nx[1] + ' at ' + moneyS(nx[0]) : 'Top of the patch'}</span></div>
+      <div class="bar brass"><i style="width:${prog * 100}%"></i></div><span class="sub">Rank is based on everything you've ever earned: ${money(S.lifetime)}</span></div>
+    <div class="card"><div class="stats">
+      <div><span class="k">Earned this run</span><b>${money(S.stats.earned)}</b></div>
+      <div><span class="k">Barrels sold</span><b>${fmt(S.stats.sold)}</b></div>
+      <div><span class="k">Leases signed</span><b>${S.stats.leases}</b></div>
+      <div><span class="k">Wells completed</span><b>${S.stats.wells}</b></div>
+      <div><span class="k">Gushers</span><b>${S.stats.gushers}</b></div>
+      <div><span class="k">Dry holes</span><b>${S.stats.dry}</b></div>
+      <div><span class="k">Best sale</span><b>$${S.stats.best.toFixed(2)}</b></div>
+      <div><span class="k">Oil spilled (full tanks)</span><b>${fmt(S.stats.lost)} bbl</b></div>
+    </div></div>
+    <div class="card stack" style="gap:6px"><span class="k">Reputation</span><div class="row" style="justify-content:space-between"><b>${repName(S.rep)}</b><span class="num">${S.rep > 0 ? '+' : ''}${S.rep}</span></div>
+      <div class="bar sage"><i style="width:${(clamp(S.rep, -50, 50) + 50)}%"></i></div><span class="sub">Owners settle for less when you have a good name. Every lease you sign and every fair deal helps.</span></div>
+    <div class="card stack" style="gap:8px"><span class="k">Legacy</span>
+      <div class="row" style="justify-content:space-between"><b>${S.legacy} Legacy points</b><span class="num">Income ×${(1 + .08 * S.legacy).toFixed(2)}</span></div>
+      <span class="sub">Sell the company to a major for Legacy points. Each point adds 8% income forever, 1% better lease terms (up to 20%) and $15K starting cash. You keep your rank. Everything else starts over.</span>
+      ${!canP ? `<span class="sub">Unlocks at ${moneyS(PRESTIGE_AT)} earned this run. You're at ${moneyS(S.stats.earned)}.</span><div class="bar brass"><i style="width:${clamp(S.stats.earned / PRESTIGE_AT, 0, 1) * 100}%"></i></div>`
+        : S.flags.pAsk ? `<p style="margin:0;font-weight:600">Sell ${esc(S.company)} for ${g} Legacy? Your leases, wells, cash and upgrades go to the buyer.</p><div class="btns"><button class="btn alt" data-a="prestigeNo">Keep going</button><button class="btn go" data-a="prestigeYes">Sell it all</button></div>`
+        : `<button class="btn go block col" data-a="prestigeAsk">Sell to a major<small>+${g} Legacy</small></button>`}
+    </div>
+    <div class="card stack" style="gap:8px"><span class="k">How it works</span>
+      <ol class="howto">
+        <li>Tap a section on the map. Survey it if you want to know what's under it.</li>
+        <li>Talk to the owner. Pay more bonus up front, or give a bigger royalty that comes out of every barrel forever.</li>
+        <li>Drill. Rich rock means big wells and sometimes gushers. Poor rock means dry holes.</li>
+        <li>Oil fills your tanks. Sell when WTI is high. A pipeline sells for you.</li>
+        <li>Wells decline. Refrac, upgrade, expand to new basins, then sell the company and do it again bigger.</li>
+      </ol></div>
+    <div class="card stack" style="gap:8px"><span class="k">Settings</span>
+      <button class="btn alt block" data-a="sound">Sound: ${S.sound ? 'On' : 'Off'}</button>
+      ${S.flags.rAsk ? `<p style="margin:0;font-weight:600">Erase everything, including Legacy and rank?</p><div class="btns"><button class="btn alt" data-a="resetNo">Cancel</button><button class="btn" style="background:var(--rust)" data-a="resetYes">Erase save</button></div>` : `<button class="btn alt block" data-a="resetAsk">Reset save</button>`}
+      <span class="sub">Progress saves on this device automatically. Wells keep pumping for up to 8 hours while you're away.</span>
+    </div>
+  </div>`;
+}
+const VIEWS = { map:[mapSig, renderMap], wells:[wellsSig, renderWells], up:[upSig, renderUp], goals:[goalSig, renderGoals], co:[coSig, renderCo] };
+function renderAll(force){
+  renderTabs();
+  const [sig, fn] = VIEWS[tab]; const s = tab + sig();
+  if (force || lastSig.main !== s){
+    if (tab === 'co' && document.activeElement && document.activeElement.id === 'co-name' && !force) { /* keep focus while typing */ }
+    else { lastSig.main = s; const st = $('#main').scrollTop; fn(); $('#main').scrollTop = st; }
+  }
+  patchLive($('#main'));
+}
+
+/* sheets */
+function showSheet(){ $('#sheet-wrap').hidden = false; $('#toasts').classList.add('top'); }
+function closeSheet(){ $('#sheet-wrap').hidden = true; $('#toasts').classList.remove('top'); sheet = null; negKey = null; lastSig.sheet = ''; }
+function openTract(r, i){ sheet = { kind:'tract', r, i }; negKey = null; showSheet(); renderSheet(true); }
+function openAuto(){ sheet = { kind:'auto' }; showSheet(); renderSheet(true); }
+function tractSig(t){ return tractView(t) + t.surveyed + t.st + tractWells(t).map(w => w.st + (w.st === 'prod' && wellRate(w) / w.qi < .55)).join() + drillWells().length + lvl('horiz') + (t.cd > S.t); }
+function renderSheet(force){
+  if (!sheet || sheet.kind === 'neg') return;
+  if (sheet.kind === 'auto'){
+    if (!force) { patchLive($('#sheet')); return; }
+    $('#sheet').innerHTML = `<div class="grab"></div><button class="x" data-a="closeSheet" aria-label="Close">×</button><div class="stack">
+      <h2>Tank battery</h2>
+      <div class="card stats"><div><span class="k">Stored</span><b>${fmt(S.bbl)} bbl</b></div><div><span class="k">Capacity</span><b>${fmt(tankCap())} bbl</b></div>
+        <div><span class="k">Spot price</span><b data-live="pnow"></b></div><div><span class="k">Oil spilled</span><b>${fmt(S.stats.lost)} bbl</b></div></div>
+      ${lvl('pipe') ? `<div class="card stack" style="gap:8px"><span class="k">Pipeline auto-sell</span>
+        <p style="margin:0">Your pipeline sells at ${Math.round(autoFrac() * 100)}% of spot. It only sells when WTI is at or above your floor. Tapping SELL always gets 100%.</p>
+        <div class="row" style="justify-content:space-between"><button class="btn alt" data-a="autoFloor" data-v="-5">−$5</button><b class="num" style="font-size:22px">${S.autoFloor ? '$' + S.autoFloor + ' floor' : 'Always sell'}</b><button class="btn alt" data-a="autoFloor" data-v="5">+$5</button></div></div>`
+      : `<p class="sub">When the tanks fill up, new oil spills and is lost. Sell often, buy Tank Farm upgrades, or build a Pipeline Connection to sell automatically.</p>`}
+    </div>`;
+    patchLive($('#sheet')); return;
+  }
+  const t = S.regions[sheet.r].tracts[sheet.i], s = tractSig(t);
+  if (!force && lastSig.sheet === s){ patchLive($('#sheet')); return; }
+  lastSig.sheet = s;
+  const o = t.owner, T = TYPES[o.type], ws = tractWells(t), v = tractView(t), R = REG[t.r];
+  const [bn, bc] = band(t.pot), h = hot(t);
+  let geo = t.surveyed ? `<div class="row"><span class="pill ${bc}">${bn}</span><div class="bar grow ${t.pot >= .5 ? 'sage' : 'brass'}"><i style="width:${t.pot * 100}%"></i></div>${lvl('geo') >= 2 ? `<span class="num">${Math.round(t.pot * 100)}%</span>` : ''}</div>`
+    : `<p class="sub" style="margin:0">Unknown. A survey tells you what's down there before you spend real money.</p>`;
+  let actions = '';
+  if (t.st === 'open'){
+    const cd = t.cd > S.t;
+    actions = `<div class="btns">
+      ${t.surveyed ? '<button class="btn alt" disabled>Surveyed</button>' : `<button class="btn alt col" data-a="survey" data-r="${t.r}" data-i="${t.i}" data-cost="${surveyCost(t.r)}">Survey<small>${moneyS(surveyCost(t.r))}</small></button>`}
+      ${cd ? `<button class="btn col" disabled>Not answering<small data-live="cd:${t.r}:${t.i}"></small></button>` : `<button class="btn go col" data-a="talk" data-r="${t.r}" data-i="${t.i}">${o.type === 'boem' ? 'Bid on block' : 'Talk to owner'}<small>Market ~${moneyS(fmv(t))}/ac</small></button>`}
+    </div>`;
+  } else {
+    const free = ws.length < slots(t), rig = drillWells().length < rigCap();
+    const note = !free ? 'Every well slot on this lease is used.' : !rig ? `All ${rigCap()} rig${rigCap() > 1 ? 's are' : ' is'} busy. Buy Rig Fleet to drill more at once.` : '';
+    actions = `${t.surveyed ? '' : `<button class="btn alt block col" data-a="survey" data-r="${t.r}" data-i="${t.i}" data-cost="${surveyCost(t.r)}">Survey before drilling<small>${moneyS(surveyCost(t.r))}</small></button>`}
+      <div class="btns">
+        <button class="btn go col" data-a="drill" data-r="${t.r}" data-i="${t.i}" data-k="v" ${free && rig ? `data-cost="${drillCost(t.r, 'v')}"` : 'disabled'}>Drill vertical<small>${moneyS(drillCost(t.r, 'v'))} · ${Math.round(drillTime('v'))}s</small></button>
+        <button class="btn col" data-a="drill" data-r="${t.r}" data-i="${t.i}" data-k="h" ${free && rig && lvl('horiz') ? `data-cost="${drillCost(t.r, 'h')}"` : 'disabled'}>Drill horizontal<small>${lvl('horiz') ? moneyS(drillCost(t.r, 'h')) + ' · ' + Math.round(drillTime('h')) + 's' : 'Needs upgrade'}</small></button>
+      </div>${note ? `<p class="sub" style="margin:0">${note}</p>` : ''}`;
+  }
+  $('#sheet').innerHTML = `<div class="grab"></div><button class="x" data-a="closeSheet" aria-label="Close">×</button><div class="stack">
+    <div><h2>${lab(t)}</h2><div class="sub">${R.blk} · ${R.name} · ${fmt(t.acres)} acres · ${slots(t)} well slot${slots(t) > 1 ? 's' : ''}</div></div>
+    <div class="owner">${avatar(o)}<div style="min-width:0"><div style="font-weight:700">${esc(o.first)} ${esc(o.last)}</div><div class="sub">${t.st === 'leased' ? `Lessor · ${ROY.find(x => x.v === t.roy).l} royalty · Held by production` : T.name}</div></div></div>
+    <div class="stack" style="gap:6px"><span class="k">Geology</span>${geo}${h && t.st === 'open' ? `<p class="sub" style="margin:0;color:var(--flare)">${h} producing lease${h > 1 ? 's' : ''} next door. The owner knows it and wants more.</p>` : ''}</div>
+    ${actions}
+    ${ws.length ? `<span class="k">Wells on this lease (${ws.length}/${slots(t)})</span>${ws.map(wellRow).join('')}` : ''}
+  </div>`;
+  patchLive($('#sheet'));
+}
+
+/* modal */
+function showModal(html){ $('#modal').innerHTML = html; $('#modal-wrap').hidden = false; }
+function closeModal(){ $('#modal-wrap').hidden = true; curEv = null; }
+
+/* HUD */
+let lastPrice = 72, sparkT = 0;
+function hud(){
+  const { r } = rankOf(S.lifetime);
+  $('#h-rank').textContent = `${S.company} · ${r[1]}`;
+  $('#h-cash').textContent = money(S.cash);
+  $('#h-rate').textContent = `+${moneyRate(dollarRate())}/s at spot` + (S.legacy ? ` · ×${(1 + .08 * S.legacy).toFixed(2)}` : '');
+  const p = salePrice();
+  $('#h-price').textContent = `$${S.price.toFixed(2)}`;
+  const d = S.price - (S.ph.length > 15 ? S.ph[S.ph.length - 15] : 72);
+  const del = $('#h-delta'); del.textContent = fxOn('hedge') ? `Hedged $${p.toFixed(0)}` : `${d >= 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(2)}`; del.className = fxOn('hedge') ? '' : d >= 0 ? 'up' : 'dn';
+  const cap = tankCap(), f = S.bbl / cap;
+  $('#h-fill').style.width = (clamp(f, 0, 1) * 100).toFixed(1) + '%';
+  $('#h-tank').classList.toggle('full', f > .97 && netRate() > 0);
+  $('#h-bbl').textContent = `${short(S.bbl)} / ${short(cap)} bbl`;
+  $('#h-auto').textContent = lvl('pipe') ? (fxOn('pipecut') ? 'Pipeline cut' : S.price >= S.autoFloor ? `Auto ${Math.round(autoFrac() * 100)}%` : `Holding < $${S.autoFloor}`) : f > .97 && netRate() > 0 ? 'FULL · spilling' : 'Tanks';
+  $('#h-sellv').textContent = money(S.bbl * p * incomeMult());
+  $('#h-sell').disabled = S.bbl < .5;
+}
+function spark(){
+  const c = $('#spark'), g = c.getContext('2d'), W = c.width, H = c.height, a = S.ph.concat([S.price]);
+  g.clearRect(0, 0, W, H); if (a.length < 2) return;
+  const mn = Math.min(...a) - 1, mx = Math.max(...a) + 1;
+  const X = i => i / (a.length - 1) * (W - 6) + 1, Y = v => H - 4 - (v - mn) / (mx - mn) * (H - 8);
+  const up = a[a.length - 1] >= a[0];
+  g.beginPath(); a.forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)));
+  g.lineTo(X(a.length - 1), H); g.lineTo(X(0), H); g.closePath();
+  g.fillStyle = up ? 'rgba(143,194,122,.18)' : 'rgba(255,138,106,.18)'; g.fill();
+  g.beginPath(); a.forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)));
+  g.strokeStyle = up ? '#8fc27a' : '#ff8a6a'; g.lineWidth = 3; g.lineJoin = 'round'; g.stroke();
+  g.beginPath(); g.arc(X(a.length - 1), Y(a[a.length - 1]), 4.5, 0, 7); g.fillStyle = '#e3b04b'; g.fill();
+}
+let newsT = 0;
+function news(h){ S.news = S.news || []; S.news.unshift(h); S.news = S.news.slice(0, 3); setTicker(); }
+function setTicker(){
+  const items = (S.news || []).concat([`WTI $${S.price.toFixed(2)}`, pick(NEWS), pick(NEWS), pick(NEWS)]);
+  $('#tick-t').textContent = items.join('   ◆   ');
+}
+
+/* juice */
+function toast(msg, kind){
+  const el = document.createElement('div'); el.className = 'toast ' + (kind || ''); el.textContent = msg;
+  const box = $('#toasts'); box.appendChild(el); while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => el.remove(), 3600);
+}
+function floaty(txt, el, small){
+  const r = el ? el.getBoundingClientRect() : { left:innerWidth / 2, top:innerHeight / 2, width:0 };
+  const f = document.createElement('div'); f.className = 'floaty'; f.textContent = txt;
+  if (small) f.style.fontSize = '15px';
+  f.style.left = (r.left + r.width / 2) + 'px'; f.style.top = (r.top - 6) + 'px';
+  document.body.appendChild(f); setTimeout(() => f.remove(), 1150);
+}
+function banner(big, small, dusty){
+  const b = $('#banner'); b.innerHTML = `${esc(big)}<small>${esc(small || '')}</small>`;
+  b.style.color = dusty ? '#c9bfa8' : ''; b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+}
+let parts = [], fxRun = false;
+function gusherFx(){
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const c = $('#fx'); c.width = innerWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio;
+  for (let k = 0; k < 260; k++) parts.push({ x:innerWidth / 2 + randn() * 8, y:innerHeight + 10, vx:randn() * 2.6, vy:-(10 + rand() * 9), r:2 + rand() * 5, life:0, d:rand() * 40 });
+  $('#app').classList.add('shake'); setTimeout(() => $('#app').classList.remove('shake'), 500);
+  if (!fxRun){ fxRun = true; requestAnimationFrame(fxLoop); }
+}
+function fxLoop(){
+  const c = $('#fx'), g = c.getContext('2d'), k = devicePixelRatio;
+  g.clearRect(0, 0, c.width, c.height);
+  parts = parts.filter(p => p.y < innerHeight + 40 && p.life < 240);
+  for (const p of parts){
+    if (p.d > 0){ p.d--; continue; }
+    p.life++; p.vy += .28; p.x += p.vx; p.y += p.vy;
+    g.beginPath(); g.ellipse(p.x * k, p.y * k, p.r * k, p.r * k * 1.4, 0, 0, 7); g.fillStyle = p.r > 4.5 ? '#2b2118' : '#120d08'; g.fill();
+  }
+  if (parts.length) requestAnimationFrame(fxLoop); else { fxRun = false; g.clearRect(0, 0, c.width, c.height); }
+}
+
+/* ================= save / load / loop ================= */
+const KEY = 'permian-wildcatter-v1';
+function save(){ S.savedAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+function load(raw){
+  try {
+    const d = JSON.parse(raw); if (!d || d.v !== 1) return null;
+    const base = newState(); const s = Object.assign(base, d); s.stats = Object.assign(newState().stats, d.stats || {});
+    s.fx = d.fx || {}; s.flags = d.flags || {}; s.flags.pAsk = 0; s.flags.rAsk = 0;
+    return s;
+  } catch (e) { return null; }
+}
+function catchUp(sec){
+  sec = Math.min(sec, 8 * 3600); if (sec < 5) return;
+  const cash0 = S.cash, sold0 = S.stats.sold, bbl0 = S.bbl, w0 = S.stats.wells, lost0 = S.stats.lost;
+  const steps = Math.min(4000, Math.ceil(sec / 4)), dt = sec / steps;
+  for (let k = 0; k < steps; k++) tick(dt, true);
+  S.nextEvent = Math.max(S.nextEvent, S.t + 40);
+  if (sec >= 60 && (S.stats.wells > 0 || S.wells.length)){
+    const made = S.stats.sold - sold0 + (S.bbl - bbl0);
+    showModal(`<div class="eyebrow">While you were gone · ${dur(sec)}</div><h2>The pumps kept pumping</h2>
+      <div class="stats"><div><span class="k">Oil produced</span><b>${fmt(Math.max(0, made))} bbl</b></div><div><span class="k">Pipeline sales</span><b>${money(S.cash - cash0)}</b></div>
+      <div><span class="k">Wells finished</span><b>${S.stats.wells - w0}</b></div><div><span class="k">Spilled</span><b>${fmt(S.stats.lost - lost0)} bbl</b></div></div>
+      ${!lvl('pipe') && S.bbl > 0 ? '<p class="sub">Your tanks are waiting. Hit SELL.</p>' : ''}
+      <button class="btn go block" data-a="modalOk">Back to work</button>`);
+  }
+}
+function welcome(){
+  showModal(`<div class="eyebrow">Reeves County, Texas</div><h2>${esc(S.company)}</h2>
+    <p>You've got $40,000, a pickup with 200,000 miles on it, and a county full of ranchers who don't trust anybody from Houston.</p>
+    <p>Lease the land. Drill the wells. Sell the crude. Don't get blown up.</p>
+    <button class="btn go block" data-a="modalOk">Let's go</button>`);
+  S.welcomed = true;
+}
+let lastNow = performance.now(), saveT = 0, uiT = 0;
+function loop(){
+  const now = performance.now(); let dt = (now - lastNow) / 1000; lastNow = now;
+  if (dt > 10) catchUp(dt); else tick(dt, false);
+  hud(); renderAll(false); renderSheet(false);
+  sparkT += dt; if (sparkT > 1){ sparkT = 0; spark(); }
+  newsT += dt; if (newsT > 40){ newsT = 0; setTicker(); }
+  saveT += dt; if (saveT > 5){ saveT = 0; save(); }
+}
+function start(data){
+  let s = null;
+  if (data && data.save) s = load(data.save);
+  if (!s){ try { const raw = localStorage.getItem(KEY); if (raw) s = load(raw); } catch (e) {} }
+  S = s || newState();
+  if (!S.regions[S.ri]) S.ri = 0;
+  if (s) catchUp((Date.now() - (S.savedAt || Date.now())) / 1000);
+  hud(); renderAll(true); spark(); setTicker();
+  if (!S.welcomed) welcome();
+  setInterval(loop, 200);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+  window.addEventListener('pagehide', save);
+  try { window.claude && window.claude.hot && window.claude.hot.snapshot && window.claude.hot.snapshot(() => ({ save:JSON.stringify(S) })); } catch (e) {}
+}
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
+</body>
+</html>
