@@ -2419,6 +2419,7 @@ function load(raw){
     const d = JSON.parse(raw); if (!d || d.v !== 1) return null;
     const base = newState(); const s = Object.assign(base, d); s.stats = Object.assign(newState().stats, d.stats || {});
     s.fx = d.fx || {}; s.flags = d.flags || {}; s.flags.pAsk = 0; s.flags.rAsk = 0;
+    for (const w of s.wells || []) if (w.st !== 'drill' && w.D > (w.k === 'h' ? .0023 : .001)){ const l = (s.up && s.up.lift) || 0; w.D = (w.k === 'h' ? .0022 : .0009) * Math.pow(.94, l); w.fl = Math.max(w.fl || 0, Math.min(.7, .28 + .04 * l)); }
     if (s.story.ph === 'intro_play') s.story.ph = 'intro'; if (s.story.ph === 'outro_play') s.story.ph = 'active';
     return s;
   } catch (e) { return null; }
