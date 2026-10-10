@@ -15,6 +15,10 @@ It's one HTML file with no build step and no dependencies. Open `index.html` in 
 
 Wells keep pumping for up to 8 hours while you're away.
 
+## Sound
+
+All sound is generated live with Web Audio. There are no audio files. That includes plucked-guitar stings for leases, gushers and new fields, a cash register with coins, diesel rigs, clanking pipe, owners who babble in their own voices, alarms, blowouts, and ambient prairie wind with pumpjacks nodding in the background. Sound effects, ambience and volume are in Company → Settings. On iPhone, turn off the silent switch to hear the game.
+
 ## Play it online
 
 Enable GitHub Pages for this repo (Settings → Pages → deploy from branch, root). The game is then served at `https://<user>.github.io/Oil-gsme/`.
